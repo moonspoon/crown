@@ -29,6 +29,10 @@ function set_holder(string $id): void
     if (!isset(people()[$id])) {
         throw new InvalidArgumentException('Unknown person');
     }
+    // Re-selecting the current holder keeps their original "since".
+    if (current_holder()['id'] === $id) {
+        return;
+    }
     if (!is_dir(dirname(DATA_FILE))) {
         mkdir(dirname(DATA_FILE), 0775, true);
     }

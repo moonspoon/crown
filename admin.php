@@ -26,8 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } elseif (!empty($_SESSION['admin']) && isset($_POST['holder'])) {
         try {
+            $alreadyHolder = current_holder()['id'] === $_POST['holder'];
             set_holder((string) $_POST['holder']);
-            $message = 'Crown passed to ' . people()[$_POST['holder']]['name'] . '.';
+            $name = people()[$_POST['holder']]['name'];
+            $message = $alreadyHolder ? "$name already has the crown." : "Crown passed to $name.";
         } catch (InvalidArgumentException) {
             $error = 'Unknown person.';
         }
