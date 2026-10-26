@@ -67,6 +67,26 @@ page_head('Crown Admin');
                 </button>
             <?php endforeach ?>
         </form>
+        <h2 class="label history-title">History</h2>
+        <?php $history = history() ?>
+        <?php if (!$history): ?>
+            <p class="since">No changes yet.</p>
+        <?php else: ?>
+            <ol class="history">
+                <?php foreach ($history as $h): ?>
+                    <li>
+                        <span><?= e(person_name($h['from'])) ?> → <strong><?= e(person_name($h['to'])) ?></strong></span>
+                        <time datetime="<?= e($h['at']) ?>"><?= e($h['at']) ?></time>
+                    </li>
+                <?php endforeach ?>
+            </ol>
+            <script>
+                document.querySelectorAll('.history time').forEach(t => {
+                    t.textContent = new Date(t.dateTime).toLocaleString();
+                });
+            </script>
+        <?php endif ?>
+
         <form method="post" class="logout">
             <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
             <button type="submit" name="logout" value="1" class="link">Log out</button>

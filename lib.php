@@ -1,6 +1,7 @@
 <?php
 
 const DATA_FILE = __DIR__ . '/data/holder.json';
+const LOG_FILE = __DIR__ . '/data/history.log';
 
 function config(): array
 {
@@ -30,14 +31,38 @@ function set_holder(string $id): void
         throw new InvalidArgumentException('Unknown person');
     }
     // Re-selecting the current holder keeps their original "since".
-    if (current_holder()['id'] === $id) {
+    $previous = current_holder()['id'];
+    if ($previous === $id) {
         return;
     }
     if (!is_dir(dirname(DATA_FILE))) {
         mkdir(dirname(DATA_FILE), 0775, true);
     }
-    $json = json_encode(['id' => $id, 'since' => date(DATE_ATOM)]);
-    file_put_contents(DATA_FILE, $json, LOCK_EX);
+    $now = date(DATE_ATOM);
+    file_put_contents(DATA_FILE, json_encode(['id' => $id, 'since' => $now]), LOCK_EX);
+
+    // One JSON object per line, oldest first.
+    $entry = json_encode(['at' => $now, 'from' => $previous, 'to' => $id, 'ip' => $_SERVER['REMOTE_ADDR'] ?? null]);
+    file_put_contents(LOG_FILE, $entry . "\n", FILE_APPEND | LOCK_EX);
+}
+
+/** Most recent changes first. */
+function history(int $limit = 50): array
+{
+    if (!is_file(LOG_FILE)) {
+        return [];
+    }
+    $lines = file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $entries = array_map(fn($line) => json_decode($line, true), array_slice($lines, -$limit));
+    return array_reverse(array_filter($entries));
+}
+
+function person_name(?string $id): string
+{
+    if ($id === null) {
+        return 'Nobody';
+    }
+    return people()[$id]['name'] ?? $id;
 }
 
 function e(?string $s): string

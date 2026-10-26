@@ -120,6 +120,18 @@ h1 { margin: 12px 0 4px; font-size: 2rem; }
 .flash.ok { background: rgba(63, 182, 122, .2); border: 1px solid var(--ok); }
 .flash.error { background: rgba(224, 93, 93, .2); border: 1px solid var(--err); }
 
+.history-title { margin: 40px 0 8px; font-weight: 400; }
+.history { list-style: none; padding: 0; margin: 0; text-align: left; }
+.history li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    font-size: .9rem;
+}
+.history time { color: var(--muted); white-space: nowrap; }
+
 .logout { margin-top: 32px; }
 button.link { background: none; border: 0; color: var(--muted); font: inherit; text-decoration: underline; cursor: pointer; }
 
