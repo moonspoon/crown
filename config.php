@@ -1,5 +1,5 @@
 <?php
-// Edit this file to set the six contenders and the admin password.
+// Edit this file to set the six contenders, the games and the admin password.
 
 return [
     'admin_password' => 'KingSp00n',
@@ -13,5 +13,13 @@ return [
         'p4' => ['name' => 'Drew', 'icon' => '🐼'],
         'p5' => ['name' => 'Mark', 'icon' => '🐯'],
         'p6' => ['name' => 'Gareth', 'icon' => '🐸'],
+    ],
+
+    // Games the crown can be won at. Picked from a list when passing the crown.
+    'games' => [
+        'Poker',
+        'Chess',
+        'Darts',
+        'Pool',
     ],
 ];

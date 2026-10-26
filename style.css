@@ -105,6 +105,39 @@ h1 { margin: 12px 0 4px; font-size: 2rem; }
 
 .name { font-size: .9rem; overflow-wrap: anywhere; }
 
+.confirm { display: grid; justify-items: center; gap: 8px; margin-top: 16px; }
+.confirm h2 { margin: 0; }
+.confirm fieldset { border: 0; padding: 0; margin: 16px 0 0; width: 100%; }
+.confirm legend { padding: 0; margin: 0 auto 8px; }
+
+.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.chips input { position: absolute; opacity: 0; pointer-events: none; }
+.chips span {
+    display: block;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 2px solid #4a3f72;
+    background: var(--panel);
+    cursor: pointer;
+}
+.chips input:checked + span { border-color: var(--gold); background: rgba(245, 197, 66, .18); }
+.chips input:focus-visible + span { outline: 2px solid var(--text); outline-offset: 2px; }
+
+button.primary {
+    width: 100%;
+    margin-top: 24px;
+    padding: 14px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--gold);
+    color: #1b1530;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+button.primary:disabled { opacity: .4; cursor: not-allowed; }
+.cancel { color: var(--muted); margin-top: 8px; }
+
 .login { display: grid; gap: 12px; text-align: left; margin-top: 24px; }
 .login input, .login button {
     font: inherit;
@@ -130,6 +163,7 @@ h1 { margin: 12px 0 4px; font-size: 2rem; }
     border-bottom: 1px solid rgba(255, 255, 255, .08);
     font-size: .9rem;
 }
+.history small { display: block; color: var(--muted); margin-top: 2px; }
 .history time { color: var(--muted); white-space: nowrap; }
 
 .logout { margin-top: 32px; }

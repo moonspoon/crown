@@ -14,6 +14,11 @@ function people(): array
     return config()['people'];
 }
 
+function games(): array
+{
+    return config()['games'] ?? [];
+}
+
 /** @return array{id: ?string, since: ?string} */
 function current_holder(): array
 {
@@ -25,15 +30,28 @@ function current_holder(): array
     return ['id' => $id, 'since' => $state['since'] ?? null];
 }
 
-function set_holder(string $id): void
+/** @param string[] $players ids of everyone else who played */
+function set_holder(string $id, string $game, array $players): void
 {
     if (!isset(people()[$id])) {
-        throw new InvalidArgumentException('Unknown person');
+        throw new InvalidArgumentException('Unknown person.');
     }
     // Re-selecting the current holder keeps their original "since".
     $previous = current_holder()['id'];
     if ($previous === $id) {
         return;
+    }
+    if (!in_array($game, games(), true)) {
+        throw new InvalidArgumentException('Pick which game was won.');
+    }
+    $players = array_values(array_unique(array_diff($players, [$id])));
+    if (!$players) {
+        throw new InvalidArgumentException('Pick who else played.');
+    }
+    foreach ($players as $player) {
+        if (!isset(people()[$player])) {
+            throw new InvalidArgumentException('Unknown person.');
+        }
     }
     if (!is_dir(dirname(DATA_FILE))) {
         mkdir(dirname(DATA_FILE), 0775, true);
@@ -42,7 +60,14 @@ function set_holder(string $id): void
     file_put_contents(DATA_FILE, json_encode(['id' => $id, 'since' => $now]), LOCK_EX);
 
     // One JSON object per line, oldest first.
-    $entry = json_encode(['at' => $now, 'from' => $previous, 'to' => $id, 'ip' => $_SERVER['REMOTE_ADDR'] ?? null]);
+    $entry = json_encode([
+        'at' => $now,
+        'from' => $previous,
+        'to' => $id,
+        'game' => $game,
+        'players' => $players,
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+    ]);
     file_put_contents(LOG_FILE, $entry . "\n", FILE_APPEND | LOCK_EX);
 }
 
