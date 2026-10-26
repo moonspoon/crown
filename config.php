@@ -17,9 +17,24 @@ return [
 
     // Games the crown can be won at. Picked from a list when passing the crown.
     'games' => [
-        'Poker',
-        'Chess',
-        'Darts',
-        'Pool',
+        'Power Grid',
+        'Dominion',
+        'Catan',
+        'Catan Seafarers',
+        'Catan Starfarers',
+        'Catan Hawaii',
+        'Ticket to Ride',
+        'Carcassonne',
+        'Heat',
+        'Hot Streak',
+        'Wingspan',
+        'Deep Regrets',
+        'Ra',
+        'Forest Shuffle',
+        'Samurai',
+        'Ingenious',
+        'Tzolkin',
+        'The Quest for El Dorado',
+        'Pandemic: Contagion'
     ],
 ];

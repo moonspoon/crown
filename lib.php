@@ -14,9 +14,12 @@ function people(): array
     return config()['people'];
 }
 
+/** Alphabetical, whatever order config.php lists them in. */
 function games(): array
 {
-    return config()['games'] ?? [];
+    $games = config()['games'] ?? [];
+    natcasesort($games);
+    return array_values($games);
 }
 
 /** @return array{id: ?string, since: ?string} */
