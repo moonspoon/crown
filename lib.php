@@ -74,6 +74,40 @@ function set_holder(string $id, string $game, array $players): void
     file_put_contents(LOG_FILE, $entry . "\n", FILE_APPEND | LOCK_EX);
 }
 
+/**
+ * Removes the history entry recorded at $at for $to, keeping the chain of holders consistent:
+ * the next entry takes over its "from", and deleting the latest entry hands the crown back.
+ * @return bool false if no entry matched
+ */
+function delete_history_entry(string $at, string $to): bool
+{
+    if (!is_file(LOG_FILE)) {
+        return false;
+    }
+    $entries = array_values(array_filter(array_map(
+        fn($line) => json_decode($line, true),
+        file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)
+    )));
+    foreach ($entries as $i => $entry) {
+        if ($entry['at'] !== $at || $entry['to'] !== $to) {
+            continue;
+        }
+        if (isset($entries[$i + 1])) {
+            $entries[$i + 1]['from'] = $entry['from'];
+        }
+        array_splice($entries, $i, 1);
+        $lines = array_map('json_encode', $entries);
+        file_put_contents(LOG_FILE, $lines ? implode("\n", $lines) . "\n" : '', LOCK_EX);
+
+        if ($i === count($entries)) {
+            $last = end($entries) ?: null;
+            file_put_contents(DATA_FILE, json_encode(['id' => $last['to'] ?? null, 'since' => $last['at'] ?? null]), LOCK_EX);
+        }
+        return true;
+    }
+    return false;
+}
+
 /** Most recent changes first; a null limit returns everything. */
 function history(?int $limit = 50): array
 {
@@ -88,8 +122,11 @@ function history(?int $limit = 50): array
     return array_reverse(array_filter($entries));
 }
 
-/** Renders history() entries as a list, with times shown in the viewer's locale. */
-function history_list(array $history): void
+/**
+ * Renders history() entries as a list, with times shown in the viewer's locale.
+ * Pass the admin's CSRF token to add a delete button to each entry.
+ */
+function history_list(array $history, ?string $deleteToken = null): void
 {
     if (!$history) {
         echo '<p class="since">No changes yet.</p>';
@@ -108,13 +145,32 @@ function history_list(array $history): void
                         </small>
                     <?php endif ?>
                 </div>
-                <time datetime="<?= e($h['at']) ?>"><?= e($h['at']) ?></time>
+                <div class="history-meta">
+                    <time datetime="<?= e($h['at']) ?>"><?= e($h['at']) ?></time>
+                    <?php if ($deleteToken !== null): ?>
+                        <form method="post" class="delete-entry"
+                              data-confirm="<?= e(person_name($h['to']) . (empty($h['game']) ? '' : ' winning ' . $h['game'])) ?>">
+                            <input type="hidden" name="csrf" value="<?= e($deleteToken) ?>">
+                            <input type="hidden" name="delete_at" value="<?= e($h['at']) ?>">
+                            <input type="hidden" name="delete_to" value="<?= e($h['to']) ?>">
+                            <button type="submit" class="link">Delete</button>
+                        </form>
+                    <?php endif ?>
+                </div>
             </li>
         <?php endforeach ?>
     </ol>
     <script>
         document.querySelectorAll('.history time').forEach(t => {
             t.textContent = new Date(t.dateTime).toLocaleString();
+        });
+        document.querySelectorAll('.delete-entry').forEach(form => {
+            form.addEventListener('submit', ev => {
+                const when = new Date(form.delete_at.value).toLocaleDateString();
+                if (!confirm(`Are you sure you want to delete ${form.dataset.confirm} on ${when}?`)) {
+                    ev.preventDefault();
+                }
+            });
         });
     </script>
     <?php

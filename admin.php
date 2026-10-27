@@ -26,6 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         session_destroy();
         header('Location: admin.php');
         exit;
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_at'], $_POST['delete_to'])) {
+        if (delete_history_entry((string) $_POST['delete_at'], (string) $_POST['delete_to'])) {
+            $message = 'History entry deleted.';
+        } else {
+            $error = 'That history entry no longer exists.';
+        }
     } elseif (!empty($_SESSION['admin']) && isset($_POST['holder'])) {
         $id = (string) $_POST['holder'];
         if (!isset(people()[$id])) {
@@ -140,7 +146,7 @@ page_head('Crown Admin');
         $hasMore = !$showAll && count($history) > $historyLimit;
         $history = $hasMore ? array_slice($history, 0, $historyLimit) : $history;
         ?>
-        <?php history_list($history) ?>
+        <?php history_list($history, $_SESSION['csrf']) ?>
         <?php if ($hasMore): ?>
             <a href="admin.php?all" class="show-all">Show all</a>
         <?php elseif ($showAll): ?>
