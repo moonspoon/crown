@@ -206,6 +206,16 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .game-delete button { font-size: .85rem; }
 .game-delete button:hover { color: var(--err); }
 .game-note { margin-top: 16px; }
+
+.add-entry-link { margin: 0 0 12px; }
+.add-entry input[type="datetime-local"] {
+    font: inherit;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid #4a3f72;
+    background: var(--panel);
+    color: var(--text);
+}
 .donut-wrap { display: grid; gap: 16px; justify-items: center; }
 .donut { width: 200px; height: 200px; }
 .donut circle:hover { stroke-width: 40; }
@@ -228,6 +238,8 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .bar-track { height: 12px; }
 .bar { display: block; height: 100%; min-width: 4px; background: var(--gold); border-radius: 0 4px 4px 0; }
 .bar-value { text-align: right; }
+.bar-row.unknown .bar-label { color: var(--muted); font-style: italic; }
+.bar-row.unknown .bar { background: var(--muted); }
 
 .tooltip {
     position: fixed;

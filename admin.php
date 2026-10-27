@@ -47,6 +47,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['add_entry'])) {
+        $winner = (string) ($_POST['winner'] ?? '');
+        try {
+            $at = DateTimeImmutable::createFromFormat('Y-m-d\TH:i', (string) ($_POST['at'] ?? ''));
+            if (!$at) {
+                throw new InvalidArgumentException('Enter when the match was played.');
+            }
+            add_history_entry($at, $winner, (string) ($_POST['game'] ?? ''), array_map('strval', (array) ($_POST['players'] ?? [])));
+            header('Location: admin.php?added');
+            exit;
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
     } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_at'], $_POST['delete_to'])) {
         if (delete_history_entry((string) $_POST['delete_at'], (string) $_POST['delete_to'])) {
             $message = 'History entry deleted.';
@@ -71,6 +84,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+}
+
+if (isset($_GET['added']) && !$error) {
+    $message = 'History entry added.';
 }
 
 $holder = current_holder();
@@ -130,6 +147,69 @@ page_head('Crown Admin');
                     });
                 });
             </script>
+        <?php elseif (isset($_GET['add'])): ?>
+            <?php
+            // Keep the admin's choices after a validation error; otherwise start with everyone playing.
+            $chosenAt = $_POST['at'] ?? date('Y-m-d\TH:i');
+            $chosenWinner = $_POST['winner'] ?? null;
+            $chosenGame = $_POST['game'] ?? null;
+            $chosenPlayers = isset($_POST['add_entry']) ? (array) ($_POST['players'] ?? []) : array_keys(people());
+            ?>
+            <form method="post" class="confirm add-entry">
+                <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                <h2 class="label">Add a past match</h2>
+
+                <fieldset>
+                    <legend class="label">When</legend>
+                    <input type="datetime-local" name="at" value="<?= e($chosenAt) ?>" max="<?= e(date('Y-m-d\TH:i')) ?>" required>
+                </fieldset>
+
+                <fieldset>
+                    <legend class="label">Who won</legend>
+                    <div class="chips">
+                        <?php foreach (people() as $id => $p): ?>
+                            <label>
+                                <input type="radio" name="winner" value="<?= e($id) ?>" required
+                                    <?= $id === $chosenWinner ? 'checked' : '' ?>>
+                                <span><?= e($p['icon']) ?> <?= e($p['name']) ?></span>
+                            </label>
+                        <?php endforeach ?>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend class="label">Game won</legend>
+                    <div class="chips">
+                        <label>
+                            <input type="radio" name="game" value="" <?= in_array($chosenGame, [null, ''], true) ? 'checked' : '' ?>>
+                            <span>Unknown</span>
+                        </label>
+                        <?php foreach (games() as $game): ?>
+                            <label>
+                                <input type="radio" name="game" value="<?= e($game) ?>"
+                                    <?= $game === $chosenGame ? 'checked' : '' ?>>
+                                <span><?= e($game) ?></span>
+                            </label>
+                        <?php endforeach ?>
+                    </div>
+                </fieldset>
+
+                <fieldset>
+                    <legend class="label">Who played</legend>
+                    <div class="chips">
+                        <?php foreach (people() as $id => $p): ?>
+                            <label>
+                                <input type="checkbox" name="players[]" value="<?= e($id) ?>"
+                                    <?= in_array($id, $chosenPlayers, true) ? 'checked' : '' ?>>
+                                <span><?= e($p['icon']) ?> <?= e($p['name']) ?></span>
+                            </label>
+                        <?php endforeach ?>
+                    </div>
+                </fieldset>
+
+                <button type="submit" name="add_entry" value="1" class="primary">Add to history</button>
+                <a href="admin.php" class="cancel">Cancel</a>
+            </form>
         <?php elseif ($pending): ?>
             <?php
             // Keep the admin's choices after a validation error; otherwise assume the old holder played.
@@ -197,6 +277,7 @@ page_head('Crown Admin');
         </form>
         <a href="admin.php?games" class="show-all">Manage games</a>
         <h2 class="label history-title">History</h2>
+        <a href="admin.php?add" class="show-all add-entry-link">+ Add an entry</a>
         <?php
         // Show the latest changes unless ?all is set; fetch one extra to know if there are more.
         $historyLimit = 50;

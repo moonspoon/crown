@@ -4,9 +4,9 @@ require __DIR__ . '/lib.php';
 $holder = current_holder();
 $people = people();
 $current = $holder['id'] ? $people[$holder['id']] : null;
-// The match that gave the current holder the crown, if it was recorded with a game.
+// The match that gave the current holder the crown, if it was recorded with a game or players.
 $lastWin = history(1)[0] ?? null;
-if (($lastWin['to'] ?? null) !== $holder['id'] || empty($lastWin['game'])) {
+if (($lastWin['to'] ?? null) !== $holder['id'] || (empty($lastWin['game']) && empty($lastWin['players']))) {
     $lastWin = null;
 }
 
@@ -22,10 +22,13 @@ page_head('The Crown');
             <p class="since" data-since="<?= e($holder['since']) ?>"></p>
             <?php if ($lastWin): ?>
                 <p class="won">
-                    Won at <strong><?= e($lastWin['game']) ?></strong>
-                    <?php if (!empty($lastWin['players'])): ?>
-                        <br>against <?= e(implode(', ', array_map('person_name', $lastWin['players']))) ?>
+                    <?php if (!empty($lastWin['game'])): ?>
+                        Won at <strong><?= e($lastWin['game']) ?></strong>
+                        <?php if (!empty($lastWin['players'])): ?><br>against<?php endif ?>
+                    <?php else: ?>
+                        Won against
                     <?php endif ?>
+                    <?= e(implode(', ', array_map('person_name', $lastWin['players'] ?? []))) ?>
                 </p>
             <?php endif ?>
         <?php else: ?>

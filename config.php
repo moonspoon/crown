@@ -4,6 +4,9 @@
 return [
     'admin_password' => 'KingSp00n',
 
+    // Times entered on the admin page are in this time zone.
+    'timezone' => 'Europe/London',
+
     // id => [name, icon]. Icon can be an emoji or a couple of letters.
     // Keep the ids stable: the current holder is stored by id.
     'people' => [

@@ -10,6 +10,8 @@ function config(): array
     return $config ??= require __DIR__ . '/config.php';
 }
 
+date_default_timezone_set(config()['timezone'] ?? 'Europe/London');
+
 function people(): array
 {
     return config()['people'];
@@ -71,17 +73,15 @@ function rename_game(string $old, string $new): string
     $games[$index] = $new;
     save_games($games);
 
-    if (is_file(LOG_FILE)) {
-        $lines = file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as &$line) {
-            $entry = json_decode($line, true);
+    $entries = log_entries();
+    if ($entries) {
+        foreach ($entries as &$entry) {
             if (($entry['game'] ?? null) === $old) {
                 $entry['game'] = $new;
-                $line = json_encode($entry);
             }
         }
-        unset($line);
-        file_put_contents(LOG_FILE, implode("\n", $lines) . "\n", LOCK_EX);
+        unset($entry);
+        save_log_entries($entries, false);
     }
     return $new;
 }
@@ -119,6 +119,28 @@ function current_holder(): array
     return ['id' => $id, 'since' => $state['since'] ?? null];
 }
 
+/**
+ * Checks a match's game and players. An empty game is allowed only when $gameOptional.
+ * @param string[] $players ids of everyone who played; the winner is dropped if included
+ * @return string[] the other players
+ */
+function validate_match(string $winner, string $game, array $players, bool $gameOptional = false): array
+{
+    if (!($gameOptional && $game === '') && !in_array($game, games(), true)) {
+        throw new InvalidArgumentException('Pick which game was won.');
+    }
+    $players = array_values(array_unique(array_diff($players, [$winner])));
+    if (!$players) {
+        throw new InvalidArgumentException('Pick who else played.');
+    }
+    foreach ($players as $player) {
+        if (!isset(people()[$player])) {
+            throw new InvalidArgumentException('Unknown person.');
+        }
+    }
+    return $players;
+}
+
 /** @param string[] $players ids of everyone else who played */
 function set_holder(string $id, string $game, array $players): void
 {
@@ -130,18 +152,7 @@ function set_holder(string $id, string $game, array $players): void
     if ($previous === $id) {
         return;
     }
-    if (!in_array($game, games(), true)) {
-        throw new InvalidArgumentException('Pick which game was won.');
-    }
-    $players = array_values(array_unique(array_diff($players, [$id])));
-    if (!$players) {
-        throw new InvalidArgumentException('Pick who else played.');
-    }
-    foreach ($players as $player) {
-        if (!isset(people()[$player])) {
-            throw new InvalidArgumentException('Unknown person.');
-        }
-    }
+    $players = validate_match($id, $game, $players);
     if (!is_dir(dirname(DATA_FILE))) {
         mkdir(dirname(DATA_FILE), 0775, true);
     }
@@ -167,13 +178,7 @@ function set_holder(string $id, string $game, array $players): void
  */
 function delete_history_entry(string $at, string $to): bool
 {
-    if (!is_file(LOG_FILE)) {
-        return false;
-    }
-    $entries = array_values(array_filter(array_map(
-        fn($line) => json_decode($line, true),
-        file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)
-    )));
+    $entries = log_entries();
     foreach ($entries as $i => $entry) {
         if ($entry['at'] !== $at || $entry['to'] !== $to) {
             continue;
@@ -182,16 +187,72 @@ function delete_history_entry(string $at, string $to): bool
             $entries[$i + 1]['from'] = $entry['from'];
         }
         array_splice($entries, $i, 1);
-        $lines = array_map('json_encode', $entries);
-        file_put_contents(LOG_FILE, $lines ? implode("\n", $lines) . "\n" : '', LOCK_EX);
-
-        if ($i === count($entries)) {
-            $last = end($entries) ?: null;
-            file_put_contents(DATA_FILE, json_encode(['id' => $last['to'] ?? null, 'since' => $last['at'] ?? null]), LOCK_EX);
-        }
+        save_log_entries($entries, $i === count($entries));
         return true;
     }
     return false;
+}
+
+/**
+ * Adds a past match to the history at its date. The entry after it now takes the crown from
+ * this winner, and a match newer than all others makes the winner the current holder.
+ * @param string $game empty when it wasn't recorded
+ * @param string[] $players ids of everyone who played
+ */
+function add_history_entry(DateTimeInterface $at, string $winner, string $game, array $players): void
+{
+    if (!isset(people()[$winner])) {
+        throw new InvalidArgumentException('Pick who won.');
+    }
+    if ($at->getTimestamp() > time()) {
+        throw new InvalidArgumentException("The match can't be in the future.");
+    }
+    $players = validate_match($winner, $game, $players, true);
+
+    $entries = log_entries();
+    $index = 0;
+    while (isset($entries[$index]) && strtotime($entries[$index]['at']) <= $at->getTimestamp()) {
+        $index++;
+    }
+    $entry = [
+        'at' => $at->format(DATE_ATOM),
+        'from' => $entries[$index - 1]['to'] ?? null,
+        'to' => $winner,
+        'game' => $game === '' ? null : $game,
+        'players' => $players,
+        'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+    ];
+    if (isset($entries[$index])) {
+        $entries[$index]['from'] = $winner;
+    }
+    array_splice($entries, $index, 0, [$entry]);
+    save_log_entries($entries, $index === count($entries) - 1);
+}
+
+/** Every history entry, oldest first. */
+function log_entries(): array
+{
+    if (!is_file(LOG_FILE)) {
+        return [];
+    }
+    return array_values(array_filter(array_map(
+        fn($line) => json_decode($line, true),
+        file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES)
+    )));
+}
+
+/** Rewrites the history; $latestChanged also makes the newest entry's winner the current holder. */
+function save_log_entries(array $entries, bool $latestChanged): void
+{
+    if (!is_dir(dirname(LOG_FILE))) {
+        mkdir(dirname(LOG_FILE), 0775, true);
+    }
+    $lines = array_map('json_encode', $entries);
+    file_put_contents(LOG_FILE, $lines ? implode("\n", $lines) . "\n" : '', LOCK_EX);
+    if ($latestChanged) {
+        $last = end($entries) ?: null;
+        file_put_contents(DATA_FILE, json_encode(['id' => $last['to'] ?? null, 'since' => $last['at'] ?? null]), LOCK_EX);
+    }
 }
 
 /** Most recent changes first; a null limit returns everything. */
@@ -224,10 +285,12 @@ function history_list(array $history, ?string $deleteToken = null): void
             <li>
                 <div>
                     <span><?= e(person_name($h['from'])) ?> → <strong><?= e(person_name($h['to'])) ?></strong></span>
-                    <?php if (!empty($h['game'])): ?>
+                    <?php if (!empty($h['game']) || !empty($h['players'])): ?>
                         <small>
-                            Won at <?= e($h['game']) ?>
-                            against <?= e(implode(', ', array_map('person_name', $h['players'] ?? []))) ?>
+                            Won<?= empty($h['game']) ? '' : ' at ' . e($h['game']) ?>
+                            <?php if (!empty($h['players'])): ?>
+                                against <?= e(implode(', ', array_map('person_name', $h['players']))) ?>
+                            <?php endif ?>
                         </small>
                     <?php endif ?>
                 </div>
