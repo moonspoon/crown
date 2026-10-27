@@ -30,7 +30,10 @@ page_head('The Crown');
         <?php endforeach ?>
     </ul>
 
-    <a href="history.php" class="show-all">Crown history</a>
+    <nav class="home-links">
+        <a href="history.php" class="show-all">Crown history</a>
+        <a href="stats.php" class="show-all">Stats</a>
+    </nav>
 </main>
 <a class="admin-link" href="admin.php">Admin</a>
 
