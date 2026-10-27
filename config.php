@@ -18,11 +18,15 @@ return [
         'p6' => ['name' => 'Gareth', 'icon' => '🐸'],
     ],
 
-    // Where matches are played. The first is the default.
+    // Where matches are played.
     'locations' => [
         'Mill Hill Road',
         "Gareth's",
     ],
+    // Preselected when passing the crown or adding a match.
+    'default_location' => "Gareth's",
+    // Where older history entries recorded without a location were played.
+    'unrecorded_location' => 'Mill Hill Road',
 
     // Starting list of games the crown can be won at. Once a game is added, renamed or
     // deleted on the admin page, the list lives in data/games.json and this one is ignored.
