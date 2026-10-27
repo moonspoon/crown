@@ -132,7 +132,14 @@ page_head('Crown Admin');
             <?php endforeach ?>
         </form>
         <h2 class="label history-title">History</h2>
-        <?php $history = history() ?>
+        <?php
+        // Show the latest changes unless ?all is set; fetch one extra to know if there are more.
+        $historyLimit = 50;
+        $showAll = isset($_GET['all']);
+        $history = history($showAll ? null : $historyLimit + 1);
+        $hasMore = !$showAll && count($history) > $historyLimit;
+        $history = $hasMore ? array_slice($history, 0, $historyLimit) : $history;
+        ?>
         <?php if (!$history): ?>
             <p class="since">No changes yet.</p>
         <?php else: ?>
@@ -152,6 +159,11 @@ page_head('Crown Admin');
                     </li>
                 <?php endforeach ?>
             </ol>
+            <?php if ($hasMore): ?>
+                <a href="admin.php?all" class="show-all">Show all</a>
+            <?php elseif ($showAll): ?>
+                <a href="admin.php" class="show-all">Show latest only</a>
+            <?php endif ?>
             <script>
                 document.querySelectorAll('.history time').forEach(t => {
                     t.textContent = new Date(t.dateTime).toLocaleString();

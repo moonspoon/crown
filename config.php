@@ -35,6 +35,7 @@ return [
         'Ingenious',
         'Tzolkin',
         'The Quest for El Dorado',
-        'Pandemic: Contagion'
+        'Pandemic: Contagion',
+        '7 Wonders',
     ],
 ];

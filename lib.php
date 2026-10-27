@@ -74,14 +74,17 @@ function set_holder(string $id, string $game, array $players): void
     file_put_contents(LOG_FILE, $entry . "\n", FILE_APPEND | LOCK_EX);
 }
 
-/** Most recent changes first. */
-function history(int $limit = 50): array
+/** Most recent changes first; a null limit returns everything. */
+function history(?int $limit = 50): array
 {
     if (!is_file(LOG_FILE)) {
         return [];
     }
     $lines = file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    $entries = array_map(fn($line) => json_decode($line, true), array_slice($lines, -$limit));
+    if ($limit !== null) {
+        $lines = array_slice($lines, -$limit);
+    }
+    $entries = array_map(fn($line) => json_decode($line, true), $lines);
     return array_reverse(array_filter($entries));
 }
 
