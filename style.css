@@ -241,6 +241,8 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .bar-track { height: 12px; }
 .bar { display: block; height: 100%; min-width: 4px; background: var(--gold); border-radius: 0 4px 4px 0; }
 .bar-value { text-align: right; }
+.since-crown .bar-row { grid-template-columns: minmax(0, 9rem) 1fr 6.5rem; }
+.chart-note { margin-top: 6px; text-align: right; font-size: .75rem; }
 .bar-row.unknown .bar-label { color: var(--muted); font-style: italic; }
 .bar-row.unknown .bar { background: var(--muted); }
 
