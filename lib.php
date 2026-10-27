@@ -2,6 +2,7 @@
 
 const DATA_FILE = __DIR__ . '/data/holder.json';
 const LOG_FILE = __DIR__ . '/data/history.log';
+const GAMES_FILE = __DIR__ . '/data/games.json';
 
 function config(): array
 {
@@ -14,12 +15,97 @@ function people(): array
     return config()['people'];
 }
 
-/** Alphabetical, whatever order config.php lists them in. */
+/** Alphabetical. Managed from the admin page; config.php only supplies the starting list. */
 function games(): array
 {
-    $games = config()['games'] ?? [];
+    $games = is_file(GAMES_FILE)
+        ? json_decode((string) file_get_contents(GAMES_FILE), true)
+        : config()['games'] ?? [];
     natcasesort($games);
     return array_values($games);
+}
+
+function save_games(array $games): void
+{
+    if (!is_dir(dirname(GAMES_FILE))) {
+        mkdir(dirname(GAMES_FILE), 0775, true);
+    }
+    natcasesort($games);
+    file_put_contents(GAMES_FILE, json_encode(array_values($games), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+/** Trims a new game name and checks it isn't empty, too long or already listed (ignoring case). */
+function clean_game_name(string $name, ?string $except = null): string
+{
+    $name = trim(preg_replace('/\s+/', ' ', $name));
+    if ($name === '') {
+        throw new InvalidArgumentException('Enter a game name.');
+    }
+    if (strlen($name) > 60) {
+        throw new InvalidArgumentException('Game names can be at most 60 characters.');
+    }
+    foreach (games() as $game) {
+        if ($game !== $except && strcasecmp($game, $name) === 0) {
+            throw new InvalidArgumentException("$game is already in the list.");
+        }
+    }
+    return $name;
+}
+
+function add_game(string $name): string
+{
+    $name = clean_game_name($name);
+    save_games([...games(), $name]);
+    return $name;
+}
+
+/** Renames the game in the list and in every history entry, so stats stay together. */
+function rename_game(string $old, string $new): string
+{
+    $games = games();
+    $index = array_search($old, $games, true);
+    if ($index === false) {
+        throw new InvalidArgumentException("$old is no longer in the list.");
+    }
+    $new = clean_game_name($new, $old);
+    $games[$index] = $new;
+    save_games($games);
+
+    if (is_file(LOG_FILE)) {
+        $lines = file(LOG_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as &$line) {
+            $entry = json_decode($line, true);
+            if (($entry['game'] ?? null) === $old) {
+                $entry['game'] = $new;
+                $line = json_encode($entry);
+            }
+        }
+        unset($line);
+        file_put_contents(LOG_FILE, implode("\n", $lines) . "\n", LOCK_EX);
+    }
+    return $new;
+}
+
+/** Removes the game from the list; past history entries keep their game name. */
+function delete_game(string $name): void
+{
+    $games = games();
+    if (!in_array($name, $games, true)) {
+        throw new InvalidArgumentException("$name is no longer in the list.");
+    }
+    save_games(array_diff($games, [$name]));
+}
+
+/** @return array<string, int> how many history entries name each game */
+function game_counts(): array
+{
+    $counts = [];
+    foreach (history(null) as $entry) {
+        if (!empty($entry['game'])) {
+            $counts[$entry['game']] = ($counts[$entry['game']] ?? 0) + 1;
+        }
+    }
+    return $counts;
 }
 
 /** @return array{id: ?string, since: ?string} */

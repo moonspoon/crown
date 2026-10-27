@@ -1,5 +1,5 @@
 <?php
-// Edit this file to set the six contenders, the games and the admin password.
+// Edit this file to set the six contenders, the starting games and the admin password.
 
 return [
     'admin_password' => 'KingSp00n',
@@ -15,7 +15,8 @@ return [
         'p6' => ['name' => 'Gareth', 'icon' => '🐸'],
     ],
 
-    // Games the crown can be won at. Picked from a list when passing the crown.
+    // Starting list of games the crown can be won at. Once a game is added, renamed or
+    // deleted on the admin page, the list lives in data/games.json and this one is ignored.
     'games' => [
         'Power Grid',
         'Dominion',

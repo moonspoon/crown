@@ -26,6 +26,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         session_destroy();
         header('Location: admin.php');
         exit;
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['add_game'])) {
+        try {
+            $message = add_game((string) $_POST['add_game']) . ' added.';
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['rename_from'], $_POST['rename_to'])) {
+        $from = (string) $_POST['rename_from'];
+        try {
+            $to = rename_game($from, (string) $_POST['rename_to']);
+            $message = $to === $from ? 'No change.' : "$from renamed to $to.";
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_game'])) {
+        try {
+            delete_game((string) $_POST['delete_game']);
+            $message = $_POST['delete_game'] . ' removed from the list.';
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
     } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_at'], $_POST['delete_to'])) {
         if (delete_history_entry((string) $_POST['delete_at'], (string) $_POST['delete_to'])) {
             $message = 'History entry deleted.';
@@ -72,7 +93,44 @@ page_head('Crown Admin');
         <?php if (config()['admin_password'] === 'change-me'): ?>
             <p class="flash error">You're still using the default password. Change it in config.php.</p>
         <?php endif ?>
-        <?php if ($pending): ?>
+        <?php if (isset($_GET['games'])): ?>
+            <h2 class="label stats-title">Games</h2>
+            <form method="post" class="game-add">
+                <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                <input name="add_game" placeholder="New game" maxlength="60" required aria-label="New game name">
+                <button type="submit">Add</button>
+            </form>
+            <?php $counts = game_counts() ?>
+            <div class="game-list">
+                <?php foreach (games() as $game): ?>
+                    <?php $played = $counts[$game] ?? 0 ?>
+                    <div class="game-row">
+                        <form method="post" class="game-rename">
+                            <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                            <input type="hidden" name="rename_from" value="<?= e($game) ?>">
+                            <input name="rename_to" value="<?= e($game) ?>" maxlength="60" required aria-label="Name for <?= e($game) ?>">
+                            <button type="submit">Save</button>
+                        </form>
+                        <span class="game-played"><?= $played ?>×</span>
+                        <form method="post" class="game-delete"
+                              data-confirm="Are you sure you want to remove <?= e($game) ?> from the list?<?= $played ? ' Its ' . $played . ' past ' . ($played === 1 ? 'match stays' : 'matches stay') . ' in the history.' : '' ?>">
+                            <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                            <input type="hidden" name="delete_game" value="<?= e($game) ?>">
+                            <button type="submit" class="link">Delete</button>
+                        </form>
+                    </div>
+                <?php endforeach ?>
+            </div>
+            <p class="since game-note">Renaming a game also renames it in the history. × is how many recorded matches it has.</p>
+            <a href="admin.php" class="show-all">← Back to admin</a>
+            <script>
+                document.querySelectorAll('.game-delete').forEach(form => {
+                    form.addEventListener('submit', ev => {
+                        if (!confirm(form.dataset.confirm)) ev.preventDefault();
+                    });
+                });
+            </script>
+        <?php elseif ($pending): ?>
             <?php
             // Keep the admin's choices after a validation error; otherwise assume the old holder played.
             $chosenGame = $_POST['game'] ?? null;
@@ -137,6 +195,7 @@ page_head('Crown Admin');
                 </button>
             <?php endforeach ?>
         </form>
+        <a href="admin.php?games" class="show-all">Manage games</a>
         <h2 class="label history-title">History</h2>
         <?php
         // Show the latest changes unless ?all is set; fetch one extra to know if there are more.

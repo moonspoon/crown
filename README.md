@@ -7,7 +7,7 @@ Shows which of six people currently holds the crown. An admin page lets you pass
 - `history.php`: every change of crown holder, with the game and players.
 - `stats.php`: how long each person has held the crown, and how often each game has been played.
 - `api.php`: the current holder as JSON.
-- `config.php`: the six people (name and icon), the list of games and the admin password.
+- `config.php`: the six people (name and icon), the starting list of games and the admin password. Games are then managed from the admin page (stored in `data/games.json`).
 
 ## Setup
 
