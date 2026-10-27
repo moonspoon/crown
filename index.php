@@ -29,6 +29,8 @@ page_head('The Crown');
             </li>
         <?php endforeach ?>
     </ul>
+
+    <a href="history.php" class="show-all">Crown history</a>
 </main>
 <a class="admin-link" href="admin.php">Admin</a>
 

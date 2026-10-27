@@ -140,35 +140,11 @@ page_head('Crown Admin');
         $hasMore = !$showAll && count($history) > $historyLimit;
         $history = $hasMore ? array_slice($history, 0, $historyLimit) : $history;
         ?>
-        <?php if (!$history): ?>
-            <p class="since">No changes yet.</p>
-        <?php else: ?>
-            <ol class="history">
-                <?php foreach ($history as $h): ?>
-                    <li>
-                        <div>
-                            <span><?= e(person_name($h['from'])) ?> → <strong><?= e(person_name($h['to'])) ?></strong></span>
-                            <?php if (!empty($h['game'])): ?>
-                                <small>
-                                    Won at <?= e($h['game']) ?>
-                                    against <?= e(implode(', ', array_map('person_name', $h['players'] ?? []))) ?>
-                                </small>
-                            <?php endif ?>
-                        </div>
-                        <time datetime="<?= e($h['at']) ?>"><?= e($h['at']) ?></time>
-                    </li>
-                <?php endforeach ?>
-            </ol>
-            <?php if ($hasMore): ?>
-                <a href="admin.php?all" class="show-all">Show all</a>
-            <?php elseif ($showAll): ?>
-                <a href="admin.php" class="show-all">Show latest only</a>
-            <?php endif ?>
-            <script>
-                document.querySelectorAll('.history time').forEach(t => {
-                    t.textContent = new Date(t.dateTime).toLocaleString();
-                });
-            </script>
+        <?php history_list($history) ?>
+        <?php if ($hasMore): ?>
+            <a href="admin.php?all" class="show-all">Show all</a>
+        <?php elseif ($showAll): ?>
+            <a href="admin.php" class="show-all">Show latest only</a>
         <?php endif ?>
         <?php endif ?>
 

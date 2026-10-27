@@ -88,6 +88,38 @@ function history(?int $limit = 50): array
     return array_reverse(array_filter($entries));
 }
 
+/** Renders history() entries as a list, with times shown in the viewer's locale. */
+function history_list(array $history): void
+{
+    if (!$history) {
+        echo '<p class="since">No changes yet.</p>';
+        return;
+    }
+    ?>
+    <ol class="history">
+        <?php foreach ($history as $h): ?>
+            <li>
+                <div>
+                    <span><?= e(person_name($h['from'])) ?> → <strong><?= e(person_name($h['to'])) ?></strong></span>
+                    <?php if (!empty($h['game'])): ?>
+                        <small>
+                            Won at <?= e($h['game']) ?>
+                            against <?= e(implode(', ', array_map('person_name', $h['players'] ?? []))) ?>
+                        </small>
+                    <?php endif ?>
+                </div>
+                <time datetime="<?= e($h['at']) ?>"><?= e($h['at']) ?></time>
+            </li>
+        <?php endforeach ?>
+    </ol>
+    <script>
+        document.querySelectorAll('.history time').forEach(t => {
+            t.textContent = new Date(t.dateTime).toLocaleString();
+        });
+    </script>
+    <?php
+}
+
 function person_name(?string $id): string
 {
     if ($id === null) {
