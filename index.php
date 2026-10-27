@@ -4,6 +4,11 @@ require __DIR__ . '/lib.php';
 $holder = current_holder();
 $people = people();
 $current = $holder['id'] ? $people[$holder['id']] : null;
+// The match that gave the current holder the crown, if it was recorded with a game.
+$lastWin = history(1)[0] ?? null;
+if (($lastWin['to'] ?? null) !== $holder['id'] || empty($lastWin['game'])) {
+    $lastWin = null;
+}
 
 page_head('The Crown');
 ?>
@@ -15,6 +20,14 @@ page_head('The Crown');
             <div class="avatar big"><?= e($current['icon']) ?></div>
             <h1><?= e($current['name']) ?></h1>
             <p class="since" data-since="<?= e($holder['since']) ?>"></p>
+            <?php if ($lastWin): ?>
+                <p class="won">
+                    Won at <strong><?= e($lastWin['game']) ?></strong>
+                    <?php if (!empty($lastWin['players'])): ?>
+                        <br>against <?= e(implode(', ', array_map('person_name', $lastWin['players']))) ?>
+                    <?php endif ?>
+                </p>
+            <?php endif ?>
         <?php else: ?>
             <div class="avatar big empty">?</div>
             <h1>Nobody yet</h1>
