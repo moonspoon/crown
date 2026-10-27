@@ -6,15 +6,58 @@ $changes = array_reverse(history(null));
 $now = time();
 
 $heldFor = array_fill_keys(array_keys(people()), 0);
+// When each person last stopped holding the crown; the current holder's spell ends now.
+$lastHeldUntil = array_fill_keys(array_keys(people()), null);
 foreach ($changes as $i => $c) {
     $start = strtotime($c['at']);
     $end = isset($changes[$i + 1]) ? strtotime($changes[$i + 1]['at']) : $now;
     if (isset($heldFor[$c['to']])) {
         $heldFor[$c['to']] += max(0, $end - $start);
+        $lastHeldUntil[$c['to']] = $end;
     }
 }
 $totalHeld = array_sum($heldFor);
 arsort($heldFor);
+
+// Each person's longest unbroken spell with the crown; matches they kept it at don't break a spell.
+// The same spells give each person's most matches won in a row (keeping the crown counts as a win).
+$longestReign = array_fill_keys(array_keys(people()), null);
+$longestStreak = array_fill_keys(array_keys(people()), null);
+$reignStart = null;
+$reignWins = 0;
+foreach ($changes as $i => $c) {
+    $reignStart ??= strtotime($c['at']);
+    $reignWins++;
+    $next = $changes[$i + 1] ?? null;
+    if ($next && $next['to'] === $c['to']) {
+        continue;
+    }
+    $reignEnd = $next ? strtotime($next['at']) : $now;
+    $length = $reignEnd - $reignStart;
+    if (isset(people()[$c['to']])) {
+        if ($length > ($longestReign[$c['to']]['length'] ?? -1)) {
+            $longestReign[$c['to']] = ['length' => $length, 'from' => $reignStart, 'to' => $reignEnd, 'ongoing' => !$next];
+        }
+        if ($reignWins > ($longestStreak[$c['to']]['wins'] ?? 0)) {
+            $longestStreak[$c['to']] = ['wins' => $reignWins, 'from' => $reignStart, 'last' => strtotime($c['at']), 'ongoing' => !$next];
+        }
+    }
+    $reignStart = null;
+    $reignWins = 0;
+}
+uasort($longestReign, fn($a, $b) => ($b['length'] ?? -1) <=> ($a['length'] ?? -1));
+$maxReign = max(1, ...array_values(array_map(fn($r) => $r['length'] ?? 0, $longestReign)));
+uasort($longestStreak, fn($a, $b) => ($b['wins'] ?? 0) <=> ($a['wins'] ?? 0));
+$maxStreak = max(1, ...array_values(array_map(fn($s) => $s['wins'] ?? 0, $longestStreak)));
+
+// Days since each person last had the crown, longest wait first; null means never held it.
+$holderId = $changes ? end($changes)['to'] : null;
+$daysSince = [];
+foreach ($lastHeldUntil as $id => $until) {
+    $daysSince[$id] = $until === null ? null : ($id === $holderId ? 0 : (int) floor(($now - $until) / 86400));
+}
+uasort($daysSince, fn($a, $b) => ($b ?? PHP_INT_MAX) <=> ($a ?? PHP_INT_MAX));
+$maxDaysSince = max(1, ...array_values(array_map(fn($d) => $d ?? 0, $daysSince)));
 $gameCounts = game_counts();
 arsort($gameCounts);
 // [label, count, unknown?] rows, with matches that have no game recorded last.
@@ -31,6 +74,15 @@ foreach ($changes as $c) {
     $weekdays[date('l', strtotime($c['at']))]++;
 }
 $maxWeekday = max($weekdays);
+
+// How many matches had each number of players (the winner plus everyone they played against).
+$playerCounts = [];
+foreach ($changes as $c) {
+    $n = count(array_unique([$c['to'], ...($c['players'] ?? [])]));
+    $playerCounts[$n] = ($playerCounts[$n] ?? 0) + 1;
+}
+krsort($playerCounts);
+$maxPlayerCount = $playerCounts ? max($playerCounts) : 0;
 
 // Matches each person played in, as winner or one of the other players.
 $attended = array_fill_keys(array_keys(people()), 0);
@@ -142,6 +194,71 @@ page_head('Crown Stats');
             </div>
         </div>
 
+        <h2 class="label stats-title">Longest time with the crown</h2>
+        <div class="bars since-crown" aria-label="Each person's longest unbroken spell holding the crown">
+            <?php foreach ($longestReign as $id => $reign): ?>
+                <?php
+                $tip = $reign === null
+                    ? person_name($id) . ' has never held the crown'
+                    : person_name($id) . ': ' . days($reign['length']) . ', ' . date('j M Y', $reign['from'])
+                        . ($reign['ongoing'] ? ' to now (still holding)' : ' to ' . date('j M Y', $reign['to']));
+                ?>
+                <div class="bar-row" data-tip="<?= e($tip) ?>">
+                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-track">
+                        <?php if ($reign): ?><span class="bar" style="width: <?= round(100 * $reign['length'] / $maxReign, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
+                    </span>
+                    <span class="bar-value"><?= $reign ? e(days($reign['length'])) . ($reign['ongoing'] ? '*' : '') : 'Never' ?></span>
+                </div>
+            <?php endforeach ?>
+        </div>
+        <?php if (array_filter(array_column(array_filter($longestReign), 'ongoing'))): ?>
+            <p class="since chart-note">* still holding the crown</p>
+        <?php endif ?>
+
+        <h2 class="label stats-title">Most wins in a row</h2>
+        <div class="bars since-crown" aria-label="Each person's most crown matches won in a row">
+            <?php foreach ($longestStreak as $id => $streak): ?>
+                <?php
+                $tip = $streak === null
+                    ? person_name($id) . ' has never won the crown'
+                    : person_name($id) . ': ' . $streak['wins'] . ' in a row'
+                        . ($streak['wins'] > 1 ? ', ' . date('j M Y', $streak['from']) . ' to ' . date('j M Y', $streak['last']) : ' on ' . date('j M Y', $streak['from']))
+                        . ($streak['ongoing'] ? ' (still going)' : '');
+                ?>
+                <div class="bar-row" data-tip="<?= e($tip) ?>">
+                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-track">
+                        <?php if ($streak): ?><span class="bar" style="width: <?= round(100 * $streak['wins'] / $maxStreak, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
+                    </span>
+                    <span class="bar-value"><?= $streak ? $streak['wins'] . ($streak['wins'] === 1 ? ' win' : ' wins') . ($streak['ongoing'] ? '*' : '') : 'None' ?></span>
+                </div>
+            <?php endforeach ?>
+        </div>
+        <?php if (array_filter(array_column(array_filter($longestStreak), 'ongoing'))): ?>
+            <p class="since chart-note">* still going</p>
+        <?php endif ?>
+
+        <h2 class="label stats-title">Days since last holding the crown</h2>
+        <div class="bars since-crown" aria-label="Days since each person last held the crown">
+            <?php foreach ($daysSince as $id => $d): ?>
+                <?php
+                $text = match (true) {
+                    $d === null => 'Never',
+                    $id === $holderId => 'Has it now',
+                    default => days($d * 86400),
+                };
+                ?>
+                <div class="bar-row" data-tip="<?= e(person_name($id) . ': ' . ($id === $holderId ? 'holds the crown now' : ($d === null ? 'has never held the crown' : days($d * 86400) . ' since they last had it'))) ?>">
+                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-track">
+                        <?php if ($d): ?><span class="bar" style="width: <?= round(100 * $d / $maxDaysSince, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
+                    </span>
+                    <span class="bar-value"><?= e($text) ?></span>
+                </div>
+            <?php endforeach ?>
+        </div>
+
         <h2 class="label stats-title">Games played</h2>
         <div class="bars" aria-label="Number of crown matches per game">
             <?php foreach ($gameRows as [$game, $count, $unknown]): ?>
@@ -211,6 +328,17 @@ page_head('Crown Stats');
                     <span class="bar-track">
                         <?php if ($count): ?><span class="bar" style="width: <?= round(100 * $count / $maxWeekday, 1) ?>%"></span><?php endif ?>
                     </span>
+                    <span class="bar-value"><?= $count ?></span>
+                </div>
+            <?php endforeach ?>
+        </div>
+
+        <h2 class="label stats-title">Players per match</h2>
+        <div class="bars" aria-label="Number of crown matches by how many people played">
+            <?php foreach ($playerCounts as $n => $count): ?>
+                <div class="bar-row" data-tip="<?= e($n . ' players: ' . $count . ($count === 1 ? ' match' : ' matches') . ' (' . round(100 * $count / count($changes)) . '%)') ?>">
+                    <span class="bar-label"><?= $n ?> players</span>
+                    <span class="bar-track"><span class="bar" style="width: <?= round(100 * $count / $maxPlayerCount, 1) ?>%"></span></span>
                     <span class="bar-value"><?= $count ?></span>
                 </div>
             <?php endforeach ?>
