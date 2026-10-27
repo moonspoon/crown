@@ -17,6 +17,38 @@ function people(): array
     return config()['people'];
 }
 
+/** Where matches are played; the first is the default. */
+function locations(): array
+{
+    return config()['locations'] ?? ['Mill Hill Road'];
+}
+
+/** Location chips for the admin forms, with $chosen (or the default) selected. */
+function location_picker(?string $chosen): void
+{
+    $chosen ??= locations()[0];
+    ?>
+    <fieldset>
+        <legend class="label">Where</legend>
+        <div class="chips">
+            <?php foreach (locations() as $location): ?>
+                <label>
+                    <input type="radio" name="location" value="<?= e($location) ?>" required
+                        <?= $location === $chosen ? 'checked' : '' ?>>
+                    <span><?= e($location) ?></span>
+                </label>
+            <?php endforeach ?>
+        </div>
+    </fieldset>
+    <?php
+}
+
+/** A history entry's location, falling back to the default for entries recorded without one. */
+function entry_location(array $entry): string
+{
+    return $entry['location'] ?? locations()[0];
+}
+
 /** Alphabetical. Managed from the admin page; config.php only supplies the starting list. */
 function games(): array
 {
@@ -124,8 +156,11 @@ function current_holder(): array
  * @param string[] $players ids of everyone who played; the winner is dropped if included
  * @return string[] the other players
  */
-function validate_match(string $winner, string $game, array $players, bool $gameOptional = false): array
+function validate_match(string $winner, string $game, array $players, string $location, bool $gameOptional = false): array
 {
+    if (!in_array($location, locations(), true)) {
+        throw new InvalidArgumentException('Pick where the match was played.');
+    }
     if (!($gameOptional && $game === '') && !in_array($game, games(), true)) {
         throw new InvalidArgumentException('Pick which game was won.');
     }
@@ -142,7 +177,7 @@ function validate_match(string $winner, string $game, array $players, bool $game
 }
 
 /** @param string[] $players ids of everyone else who played */
-function set_holder(string $id, string $game, array $players): void
+function set_holder(string $id, string $game, array $players, string $location): void
 {
     if (!isset(people()[$id])) {
         throw new InvalidArgumentException('Unknown person.');
@@ -152,7 +187,7 @@ function set_holder(string $id, string $game, array $players): void
     if ($previous === $id) {
         return;
     }
-    $players = validate_match($id, $game, $players);
+    $players = validate_match($id, $game, $players, $location);
     if (!is_dir(dirname(DATA_FILE))) {
         mkdir(dirname(DATA_FILE), 0775, true);
     }
@@ -166,6 +201,7 @@ function set_holder(string $id, string $game, array $players): void
         'to' => $id,
         'game' => $game,
         'players' => $players,
+        'location' => $location,
         'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
     ]);
     file_put_contents(LOG_FILE, $entry . "\n", FILE_APPEND | LOCK_EX);
@@ -199,7 +235,7 @@ function delete_history_entry(string $at, string $to): bool
  * @param string $game empty when it wasn't recorded
  * @param string[] $players ids of everyone who played
  */
-function add_history_entry(DateTimeInterface $at, string $winner, string $game, array $players): void
+function add_history_entry(DateTimeInterface $at, string $winner, string $game, array $players, string $location): void
 {
     if (!isset(people()[$winner])) {
         throw new InvalidArgumentException('Pick who won.');
@@ -207,7 +243,7 @@ function add_history_entry(DateTimeInterface $at, string $winner, string $game, 
     if ($at->getTimestamp() > time()) {
         throw new InvalidArgumentException("The match can't be in the future.");
     }
-    $players = validate_match($winner, $game, $players, true);
+    $players = validate_match($winner, $game, $players, $location, true);
 
     $entries = log_entries();
     $index = 0;
@@ -220,6 +256,7 @@ function add_history_entry(DateTimeInterface $at, string $winner, string $game, 
         'to' => $winner,
         'game' => $game === '' ? null : $game,
         'players' => $players,
+        'location' => $location,
         'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
     ];
     if (isset($entries[$index])) {
@@ -293,6 +330,7 @@ function history_list(array $history, ?string $deleteToken = null): void
                             <?php endif ?>
                         </small>
                     <?php endif ?>
+                    <small class="where">📍 <?= e(entry_location($h)) ?></small>
                 </div>
                 <div class="history-meta">
                     <time datetime="<?= e($h['at']) ?>"><?= e($h['at']) ?></time>

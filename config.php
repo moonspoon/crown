@@ -18,6 +18,12 @@ return [
         'p6' => ['name' => 'Gareth', 'icon' => '🐸'],
     ],
 
+    // Where matches are played. The first is the default.
+    'locations' => [
+        'Mill Hill Road',
+        "Gareth's",
+    ],
+
     // Starting list of games the crown can be won at. Once a game is added, renamed or
     // deleted on the admin page, the list lives in data/games.json and this one is ignored.
     'games' => [

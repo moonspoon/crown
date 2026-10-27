@@ -43,6 +43,22 @@ foreach ($changes as $c) {
 }
 arsort($attended);
 
+// Each person's most won game, with every game tied for the top spot.
+$winsByGame = array_fill_keys(array_keys(people()), []);
+foreach ($changes as $c) {
+    if (!empty($c['game']) && isset($winsByGame[$c['to']])) {
+        $winsByGame[$c['to']][$c['game']] = ($winsByGame[$c['to']][$c['game']] ?? 0) + 1;
+    }
+}
+$topWins = [];
+foreach ($heldFor as $id => $_) {
+    $wins = $winsByGame[$id];
+    $best = $wins ? max($wins) : 0;
+    $games = array_keys(array_filter($wins, fn($n) => $n === $best));
+    sort($games, SORT_NATURAL | SORT_FLAG_CASE);
+    $topWins[$id] = ['games' => $games, 'wins' => $best];
+}
+
 // Fixed colour per person, in config order, so a colour always means the same person.
 $colours = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'];
 $personColour = [];
@@ -50,10 +66,53 @@ foreach (array_keys(people()) as $n => $id) {
     $personColour[$id] = $colours[$n % count($colours)];
 }
 
+// Matches per location, most used first. Each location keeps a colour in config order,
+// from hues the people don't use (violet, then gold).
+$byLocation = array_fill_keys(locations(), 0);
+foreach ($changes as $c) {
+    $place = entry_location($c);
+    $byLocation[$place] = ($byLocation[$place] ?? 0) + 1;
+}
+$locationHues = ['#9085e9', '#f5c542', '#e66767', '#a99fc9'];
+$locationColour = [];
+foreach (array_keys($byLocation) as $n => $place) {
+    $locationColour[$place] = $locationHues[$n % count($locationHues)];
+}
+arsort($byLocation);
+
 function days(int $seconds): string
 {
     $d = (int) round($seconds / 86400);
     return $d === 1 ? '1 day' : number_format($d) . ' days';
+}
+
+/**
+ * A donut built from stroked circles: each slice is a dash, offset to start where the last ended.
+ * @param array<array{value: int|float, colour: string, tip: string}> $slices
+ */
+function donut(array $slices, string $label): void
+{
+    $total = array_sum(array_column($slices, 'value'));
+    $r = 70;
+    $circumference = 2 * M_PI * $r;
+    $gap = 2;
+    $offset = 0;
+    ?>
+    <svg class="donut" viewBox="0 0 200 200" role="img" aria-label="<?= e($label) ?>">
+        <g transform="rotate(-90 100 100)">
+            <?php foreach ($slices as $slice): ?>
+                <?php if (!$slice['value']) continue ?>
+                <?php $len = $circumference * $slice['value'] / $total ?>
+                <circle cx="100" cy="100" r="<?= $r ?>" fill="none"
+                        stroke="<?= e($slice['colour']) ?>" stroke-width="36"
+                        stroke-dasharray="<?= max(0.5, $len - $gap) ?> <?= $circumference ?>"
+                        stroke-dashoffset="<?= -$offset ?>"
+                        data-tip="<?= e($slice['tip']) ?>"></circle>
+                <?php $offset += $len ?>
+            <?php endforeach ?>
+        </g>
+    </svg>
+    <?php
 }
 
 page_head('Crown Stats');
@@ -66,31 +125,12 @@ page_head('Crown Stats');
         <p class="since">Since <?= e(date('j M Y', strtotime($changes[0]['at']))) ?></p>
 
         <h2 class="label stats-title">Time with the crown</h2>
-        <?php
-        // Donut built from stroked circles: each segment is a dash, offset to start where the last ended.
-        $r = 70;
-        $circumference = 2 * M_PI * $r;
-        $gap = 2;
-        $offset = 0;
-        ?>
         <div class="donut-wrap">
-            <svg class="donut" viewBox="0 0 200 200" role="img" aria-label="Share of time each person has held the crown">
-                <g transform="rotate(-90 100 100)">
-                    <?php foreach ($heldFor as $id => $secs): ?>
-                        <?php if (!$secs) continue ?>
-                        <?php
-                        $len = $circumference * $secs / $totalHeld;
-                        $tip = person_name($id) . ': ' . days($secs) . ' (' . round(100 * $secs / $totalHeld) . '%)';
-                        ?>
-                        <circle cx="100" cy="100" r="<?= $r ?>" fill="none"
-                                stroke="<?= $personColour[$id] ?>" stroke-width="36"
-                                stroke-dasharray="<?= max(0.5, $len - $gap) ?> <?= $circumference ?>"
-                                stroke-dashoffset="<?= -$offset ?>"
-                                data-tip="<?= e($tip) ?>"></circle>
-                        <?php $offset += $len ?>
-                    <?php endforeach ?>
-                </g>
-            </svg>
+            <?php donut(array_map(fn($id, $secs) => [
+                'value' => $secs,
+                'colour' => $personColour[$id],
+                'tip' => person_name($id) . ': ' . days($secs) . ' (' . round(100 * $secs / $totalHeld) . '%)',
+            ], array_keys($heldFor), $heldFor), 'Share of time each person has held the crown') ?>
             <div class="legend">
                 <?php foreach ($heldFor as $id => $secs): ?>
                     <div class="legend-row" data-tip="<?= e(person_name($id) . ': ' . days($secs)) ?>">
@@ -113,6 +153,24 @@ page_head('Crown Stats');
             <?php endforeach ?>
         </div>
 
+        <h2 class="label stats-title">Most won game</h2>
+        <div class="legend top-wins">
+            <?php foreach ($topWins as $id => $top): ?>
+                <div class="legend-row">
+                    <span class="swatch" style="background: <?= $personColour[$id] ?>"></span>
+                    <span class="who"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <?php if ($top['games']): ?>
+                        <span class="top-game">
+                            <?= e(implode(', ', $top['games'])) ?>
+                            <span class="value">· <?= $top['wins'] ?> <?= $top['wins'] === 1 ? 'win' : 'wins' ?></span>
+                        </span>
+                    <?php else: ?>
+                        <span class="value">No wins yet</span>
+                    <?php endif ?>
+                </div>
+            <?php endforeach ?>
+        </div>
+
         <h2 class="label stats-title">Attendance</h2>
         <div class="bars" aria-label="Number of crown matches each person played">
             <?php foreach ($attended as $id => $count): ?>
@@ -125,6 +183,24 @@ page_head('Crown Stats');
                     <span class="bar-value"><?= $count ?></span>
                 </div>
             <?php endforeach ?>
+        </div>
+
+        <h2 class="label stats-title">Location</h2>
+        <div class="donut-wrap">
+            <?php donut(array_map(fn($place, $count) => [
+                'value' => $count,
+                'colour' => $locationColour[$place],
+                'tip' => $place . ': ' . $count . ' matches (' . round(100 * $count / count($changes)) . '%)',
+            ], array_keys($byLocation), $byLocation), 'Share of crown matches at each location') ?>
+            <div class="legend">
+                <?php foreach ($byLocation as $place => $count): ?>
+                    <div class="legend-row">
+                        <span class="swatch" style="background: <?= $locationColour[$place] ?>"></span>
+                        <span class="who">📍 <?= e($place) ?></span>
+                        <span class="value"><?= $count ?> <?= $count === 1 ? 'match' : 'matches' ?> · <?= round(100 * $count / count($changes)) ?>%</span>
+                    </div>
+                <?php endforeach ?>
+            </div>
         </div>
 
         <h2 class="label stats-title">Day of the week</h2>

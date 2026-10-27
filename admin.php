@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$at) {
                 throw new InvalidArgumentException('Enter when the match was played.');
             }
-            add_history_entry($at, $winner, (string) ($_POST['game'] ?? ''), array_map('strval', (array) ($_POST['players'] ?? [])));
+            add_history_entry($at, $winner, (string) ($_POST['game'] ?? ''), array_map('strval', (array) ($_POST['players'] ?? [])), (string) ($_POST['location'] ?? ''));
             header('Location: admin.php?added');
             exit;
         } catch (InvalidArgumentException $ex) {
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pending = $id;
         } else {
             try {
-                set_holder($id, (string) ($_POST['game'] ?? ''), array_map('strval', (array) ($_POST['players'] ?? [])));
+                set_holder($id, (string) ($_POST['game'] ?? ''), array_map('strval', (array) ($_POST['players'] ?? [])), (string) ($_POST['location'] ?? ''));
                 $message = 'Crown passed to ' . people()[$id]['name'] . '.';
             } catch (InvalidArgumentException $ex) {
                 $error = $ex->getMessage();
@@ -164,6 +164,8 @@ page_head('Crown Admin');
                     <input type="datetime-local" name="at" value="<?= e($chosenAt) ?>" max="<?= e(date('Y-m-d\TH:i')) ?>" required>
                 </fieldset>
 
+                <?php location_picker($_POST['location'] ?? null) ?>
+
                 <fieldset>
                     <legend class="label">Who won</legend>
                     <div class="chips">
@@ -222,6 +224,8 @@ page_head('Crown Admin');
                 <p class="label">Crown goes to</p>
                 <span class="avatar"><?= e(people()[$pending]['icon']) ?></span>
                 <h2><?= e(people()[$pending]['name']) ?></h2>
+
+                <?php location_picker($_POST['location'] ?? null) ?>
 
                 <fieldset>
                     <legend class="label">Game won</legend>
