@@ -207,6 +207,25 @@ page_head('Crown Stats');
             </div>
         </div>
 
+        <h2 class="label stats-title">Wins</h2>
+        <div class="bars" aria-label="Number of crown matches each person won">
+            <?php foreach ($winTotals as $id => $w): ?>
+                <?php
+                $taken = $w['total'] - $w['kept'];
+                $rate = $attended[$id] ? round(100 * $w['total'] / $attended[$id]) : 0;
+                $tip = person_name($id) . ': ' . $w['total'] . ($w['total'] === 1 ? ' win' : ' wins')
+                    . " ($taken taking the crown, {$w['kept']} keeping it), won $rate% of matches played";
+                ?>
+                <div class="bar-row" data-tip="<?= e($tip) ?>">
+                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-track">
+                        <?php if ($w['total']): ?><span class="bar" style="width: <?= round(100 * $w['total'] / $maxWins, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
+                    </span>
+                    <span class="bar-value"><?= $w['total'] ?></span>
+                </div>
+            <?php endforeach ?>
+        </div>
+
         <h2 class="label stats-title">Longest time with the crown</h2>
         <div class="bars since-crown" aria-label="Each person's longest unbroken spell holding the crown">
             <?php foreach ($longestReign as $id => $reign): ?>
@@ -279,25 +298,6 @@ page_head('Crown Stats');
                     <span class="bar-label"><?= e($game) ?></span>
                     <span class="bar-track"><span class="bar" style="width: <?= round(100 * $count / $maxGame, 1) ?>%"></span></span>
                     <span class="bar-value"><?= $count ?></span>
-                </div>
-            <?php endforeach ?>
-        </div>
-
-        <h2 class="label stats-title">Wins</h2>
-        <div class="bars" aria-label="Number of crown matches each person won">
-            <?php foreach ($winTotals as $id => $w): ?>
-                <?php
-                $taken = $w['total'] - $w['kept'];
-                $rate = $attended[$id] ? round(100 * $w['total'] / $attended[$id]) : 0;
-                $tip = person_name($id) . ': ' . $w['total'] . ($w['total'] === 1 ? ' win' : ' wins')
-                    . " ($taken taking the crown, {$w['kept']} keeping it), won $rate% of matches played";
-                ?>
-                <div class="bar-row" data-tip="<?= e($tip) ?>">
-                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
-                    <span class="bar-track">
-                        <?php if ($w['total']): ?><span class="bar" style="width: <?= round(100 * $w['total'] / $maxWins, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
-                    </span>
-                    <span class="bar-value"><?= $w['total'] ?></span>
                 </div>
             <?php endforeach ?>
         </div>
