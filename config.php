@@ -8,6 +8,7 @@ return [
     'timezone' => 'Europe/London',
 
     // id => [name, icon]. Icon can be an emoji or a couple of letters.
+    // Icons changed on the admin page are saved in data/icons.json and override these.
     // Keep the ids stable: the current holder is stored by id.
     'people' => [
         'p1' => ['name' => 'Spoon', 'icon' => '🤖'],

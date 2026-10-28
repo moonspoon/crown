@@ -3,6 +3,7 @@
 const DATA_FILE = __DIR__ . '/data/holder.json';
 const LOG_FILE = __DIR__ . '/data/history.log';
 const GAMES_FILE = __DIR__ . '/data/games.json';
+const ICONS_FILE = __DIR__ . '/data/icons.json';
 
 function config(): array
 {
@@ -12,21 +13,51 @@ function config(): array
 
 date_default_timezone_set(config()['timezone'] ?? 'Europe/London');
 
+/** The people from config.php, with any icons changed on the admin page. */
 function people(): array
 {
-    return config()['people'];
+    $people = config()['people'];
+    $icons = is_file(ICONS_FILE) ? json_decode((string) file_get_contents(ICONS_FILE), true) : [];
+    foreach ($icons ?: [] as $id => $icon) {
+        if (isset($people[$id])) {
+            $people[$id]['icon'] = $icon;
+        }
+    }
+    return $people;
 }
 
-/** Where matches are played; the first is the default. */
+function set_icon(string $id, string $icon): string
+{
+    if (!isset(config()['people'][$id])) {
+        throw new InvalidArgumentException('Unknown person.');
+    }
+    $icon = trim($icon);
+    if ($icon === '') {
+        throw new InvalidArgumentException('Enter an emoji or a couple of letters.');
+    }
+    // Emoji can take several bytes each (flags, skin tones, families), so allow a little room.
+    if (strlen($icon) > 32) {
+        throw new InvalidArgumentException('Icons should be a single emoji or a couple of letters.');
+    }
+    $icons = is_file(ICONS_FILE) ? (json_decode((string) file_get_contents(ICONS_FILE), true) ?: []) : [];
+    $icons[$id] = $icon;
+    if (!is_dir(dirname(ICONS_FILE))) {
+        mkdir(dirname(ICONS_FILE), 0775, true);
+    }
+    file_put_contents(ICONS_FILE, json_encode($icons, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+    return $icon;
+}
+
+/** Where matches are played. */
 function locations(): array
 {
     return config()['locations'] ?? ['Mill Hill Road'];
 }
 
-/** Location chips for the admin forms, with $chosen (or the default) selected. */
+/** Location chips for the admin forms, with $chosen (or the default for new matches) selected. */
 function location_picker(?string $chosen): void
 {
-    $chosen ??= locations()[0];
+    $chosen ??= config()['default_location'] ?? locations()[0];
     ?>
     <fieldset>
         <legend class="label">Where</legend>
@@ -43,10 +74,10 @@ function location_picker(?string $chosen): void
     <?php
 }
 
-/** A history entry's location, falling back to the default for entries recorded without one. */
+/** A history entry's location; older entries recorded without one were at the unrecorded location. */
 function entry_location(array $entry): string
 {
-    return $entry['location'] ?? locations()[0];
+    return $entry['location'] ?? config()['unrecorded_location'] ?? locations()[0];
 }
 
 /** Alphabetical. Managed from the admin page; config.php only supplies the starting list. */

@@ -208,6 +208,29 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .game-delete button:hover { color: var(--err); }
 .game-note { margin-top: 16px; }
 
+.icon-row { display: grid; grid-template-columns: auto 1fr 4.5rem auto; align-items: center; gap: 10px; text-align: left; }
+.icon-row .avatar { width: 44px; height: 44px; font-size: 1.5rem; }
+.icon-row input {
+    width: 100%;
+    font: inherit;
+    font-size: 1.3rem;
+    text-align: center;
+    padding: 6px;
+    border-radius: 8px;
+    border: 1px solid #4a3f72;
+    background: var(--panel);
+    color: var(--text);
+}
+.icon-row button {
+    font: inherit;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 0;
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+}
+
 .add-entry-link { margin: 0 0 12px; }
 .add-entry input[type="datetime-local"] {
     font: inherit;

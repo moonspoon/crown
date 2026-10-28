@@ -26,6 +26,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         session_destroy();
         header('Location: admin.php');
         exit;
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['icon_for'], $_POST['icon'])) {
+        $id = (string) $_POST['icon_for'];
+        try {
+            $icon = set_icon($id, (string) $_POST['icon']);
+            $message = people()[$id]['name'] . "'s icon is now $icon.";
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
     } elseif (!empty($_SESSION['admin']) && isset($_POST['add_game'])) {
         try {
             $message = add_game((string) $_POST['add_game']) . ' added.';
@@ -110,7 +118,23 @@ page_head('Crown Admin');
         <?php if (config()['admin_password'] === 'change-me'): ?>
             <p class="flash error">You're still using the default password. Change it in config.php.</p>
         <?php endif ?>
-        <?php if (isset($_GET['games'])): ?>
+        <?php if (isset($_GET['icons'])): ?>
+            <h2 class="label stats-title">Player icons</h2>
+            <div class="game-list">
+                <?php foreach (people() as $id => $p): ?>
+                    <form method="post" class="icon-row">
+                        <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                        <input type="hidden" name="icon_for" value="<?= e($id) ?>">
+                        <span class="avatar"><?= e($p['icon']) ?></span>
+                        <span class="icon-name"><?= e($p['name']) ?></span>
+                        <input name="icon" value="<?= e($p['icon']) ?>" required aria-label="Icon for <?= e($p['name']) ?>">
+                        <button type="submit">Save</button>
+                    </form>
+                <?php endforeach ?>
+            </div>
+            <p class="since game-note">Type or paste an emoji (on a phone, switch to the emoji keyboard), or a couple of letters.</p>
+            <a href="admin.php" class="show-all">← Back to admin</a>
+        <?php elseif (isset($_GET['games'])): ?>
             <h2 class="label stats-title">Games</h2>
             <form method="post" class="game-add">
                 <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
@@ -279,7 +303,10 @@ page_head('Crown Admin');
                 </button>
             <?php endforeach ?>
         </form>
-        <a href="admin.php?games" class="show-all">Manage games</a>
+        <nav class="home-links">
+            <a href="admin.php?games" class="show-all">Manage games</a>
+            <a href="admin.php?icons" class="show-all">Player icons</a>
+        </nav>
         <h2 class="label history-title">History</h2>
         <a href="admin.php?add" class="show-all add-entry-link">+ Add an entry</a>
         <?php
