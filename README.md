@@ -3,7 +3,7 @@
 Shows which of six people currently holds the crown. An admin page lets you pass it on.
 
 - `index.php`: the public crown page. It checks for changes every 15 seconds.
-- `admin.php`: password-protected page. Tap a person, then pick the game they won and who else played, to give them the crown. Also manages the games list, player icons and history.
+- `admin.php`: password-protected page. Tap a person, then pick the game they won and who else played, to give them the crown. Also manages the games list, locations, player icons and history.
 - `history.php`: every change of crown holder, with the game and players.
 - `stats.php`: how long each person has held the crown, and how often each game has been played.
 - `api.php`: the current holder as JSON.

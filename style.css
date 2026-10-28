@@ -207,6 +207,16 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .game-delete button { font-size: .85rem; }
 .game-delete button:hover { color: var(--err); }
 .game-note { margin-top: 16px; }
+.location-row {
+    grid-template-columns: auto 1fr auto;
+    row-gap: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+.location-row .game-rename { grid-column: 1 / -1; }
+.location-row .game-played { text-align: left; }
+.default-badge { color: var(--gold); font-size: .85rem; }
+.default-button { font-size: .85rem; white-space: nowrap; }
 
 .icon-row { display: grid; grid-template-columns: auto 1fr 4.5rem auto; align-items: center; gap: 10px; text-align: left; }
 .icon-row .avatar { width: 44px; height: 44px; font-size: 1.5rem; }

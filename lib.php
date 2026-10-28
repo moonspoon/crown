@@ -4,6 +4,7 @@ const DATA_FILE = __DIR__ . '/data/holder.json';
 const LOG_FILE = __DIR__ . '/data/history.log';
 const GAMES_FILE = __DIR__ . '/data/games.json';
 const ICONS_FILE = __DIR__ . '/data/icons.json';
+const LOCATIONS_FILE = __DIR__ . '/data/locations.json';
 
 function config(): array
 {
@@ -48,16 +49,105 @@ function set_icon(string $id, string $icon): string
     return $icon;
 }
 
-/** Where matches are played. */
+/** @return array{locations: string[], default: string} managed from the admin page; config.php supplies the start */
+function location_settings(): array
+{
+    $saved = is_file(LOCATIONS_FILE) ? json_decode((string) file_get_contents(LOCATIONS_FILE), true) : null;
+    $list = $saved['locations'] ?? config()['locations'] ?? ['Mill Hill Road'];
+    $default = $saved['default'] ?? config()['default_location'] ?? $list[0];
+    return ['locations' => $list, 'default' => in_array($default, $list, true) ? $default : $list[0]];
+}
+
+/** Where matches are played, in the order they were added. */
 function locations(): array
 {
-    return config()['locations'] ?? ['Mill Hill Road'];
+    return location_settings()['locations'];
+}
+
+/** Preselected when passing the crown or adding a match. */
+function default_location(): string
+{
+    return location_settings()['default'];
+}
+
+function save_locations(array $list, string $default): void
+{
+    if (!is_dir(dirname(LOCATIONS_FILE))) {
+        mkdir(dirname(LOCATIONS_FILE), 0775, true);
+    }
+    $list = array_values($list);
+    $settings = ['locations' => $list, 'default' => in_array($default, $list, true) ? $default : $list[0]];
+    file_put_contents(LOCATIONS_FILE, json_encode($settings, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+function add_location(string $name): string
+{
+    $name = clean_name($name, locations(), 'location');
+    save_locations([...locations(), $name], default_location());
+    return $name;
+}
+
+/** Renames the location in the list and in every history entry, so stats stay together. */
+function rename_location(string $old, string $new): string
+{
+    $list = locations();
+    $index = array_search($old, $list, true);
+    if ($index === false) {
+        throw new InvalidArgumentException("$old is no longer in the list.");
+    }
+    $new = clean_name($new, $list, 'location', $old);
+    $list[$index] = $new;
+    save_locations($list, default_location() === $old ? $new : default_location());
+
+    $entries = log_entries();
+    if ($entries) {
+        foreach ($entries as &$entry) {
+            if (entry_location($entry) === $old) {
+                $entry['location'] = $new;
+            }
+        }
+        unset($entry);
+        save_log_entries($entries, false);
+    }
+    return $new;
+}
+
+/** Removes the location from the list; past history entries keep it. The last one can't go. */
+function delete_location(string $name): void
+{
+    $list = locations();
+    if (!in_array($name, $list, true)) {
+        throw new InvalidArgumentException("$name is no longer in the list.");
+    }
+    if (count($list) === 1) {
+        throw new InvalidArgumentException('There has to be at least one location.');
+    }
+    save_locations(array_diff($list, [$name]), default_location());
+}
+
+function set_default_location(string $name): void
+{
+    if (!in_array($name, locations(), true)) {
+        throw new InvalidArgumentException("$name is no longer in the list.");
+    }
+    save_locations(locations(), $name);
+}
+
+/** @return array<string, int> how many history entries were at each location */
+function location_counts(): array
+{
+    $counts = [];
+    foreach (log_entries() as $entry) {
+        $place = entry_location($entry);
+        $counts[$place] = ($counts[$place] ?? 0) + 1;
+    }
+    return $counts;
 }
 
 /** Location chips for the admin forms, with $chosen (or the default for new matches) selected. */
 function location_picker(?string $chosen): void
 {
-    $chosen ??= config()['default_location'] ?? locations()[0];
+    $chosen ??= default_location();
     ?>
     <fieldset>
         <legend class="label">Where</legend>
@@ -99,22 +189,30 @@ function save_games(array $games): void
     file_put_contents(GAMES_FILE, json_encode(array_values($games), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
 }
 
-/** Trims a new game name and checks it isn't empty, too long or already listed (ignoring case). */
-function clean_game_name(string $name, ?string $except = null): string
+/**
+ * Trims a new name and checks it isn't empty, too long or already in $existing (ignoring case).
+ * @param string $what what is being named, for the error messages ("game", "location")
+ */
+function clean_name(string $name, array $existing, string $what, ?string $except = null): string
 {
     $name = trim(preg_replace('/\s+/', ' ', $name));
     if ($name === '') {
-        throw new InvalidArgumentException('Enter a game name.');
+        throw new InvalidArgumentException("Enter a $what name.");
     }
     if (strlen($name) > 60) {
-        throw new InvalidArgumentException('Game names can be at most 60 characters.');
+        throw new InvalidArgumentException(ucfirst($what) . ' names can be at most 60 characters.');
     }
-    foreach (games() as $game) {
-        if ($game !== $except && strcasecmp($game, $name) === 0) {
-            throw new InvalidArgumentException("$game is already in the list.");
+    foreach ($existing as $item) {
+        if ($item !== $except && strcasecmp($item, $name) === 0) {
+            throw new InvalidArgumentException("$item is already in the list.");
         }
     }
     return $name;
+}
+
+function clean_game_name(string $name, ?string $except = null): string
+{
+    return clean_name($name, games(), 'game', $except);
 }
 
 function add_game(string $name): string

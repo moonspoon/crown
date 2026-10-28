@@ -34,6 +34,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['add_location'])) {
+        try {
+            $message = add_location((string) $_POST['add_location']) . ' added.';
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['rename_location_from'], $_POST['rename_location_to'])) {
+        $from = (string) $_POST['rename_location_from'];
+        try {
+            $to = rename_location($from, (string) $_POST['rename_location_to']);
+            $message = $to === $from ? 'No change.' : "$from renamed to $to.";
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['default_location'])) {
+        try {
+            set_default_location((string) $_POST['default_location']);
+            $message = 'New matches will default to ' . $_POST['default_location'] . '.';
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_location'])) {
+        try {
+            delete_location((string) $_POST['delete_location']);
+            $message = $_POST['delete_location'] . ' removed from the list.';
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
+        }
     } elseif (!empty($_SESSION['admin']) && isset($_POST['add_game'])) {
         try {
             $message = add_game((string) $_POST['add_game']) . ' added.';
@@ -118,7 +146,53 @@ page_head('Crown Admin');
         <?php if (config()['admin_password'] === 'change-me'): ?>
             <p class="flash error">You're still using the default password. Change it in config.php.</p>
         <?php endif ?>
-        <?php if (isset($_GET['icons'])): ?>
+        <?php if (isset($_GET['locations'])): ?>
+            <h2 class="label stats-title">Locations</h2>
+            <form method="post" class="game-add">
+                <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                <input name="add_location" placeholder="New location" maxlength="60" required aria-label="New location name">
+                <button type="submit">Add</button>
+            </form>
+            <?php $counts = location_counts() ?>
+            <div class="game-list">
+                <?php foreach (locations() as $place): ?>
+                    <?php $played = $counts[$place] ?? 0 ?>
+                    <div class="game-row location-row">
+                        <form method="post" class="game-rename">
+                            <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                            <input type="hidden" name="rename_location_from" value="<?= e($place) ?>">
+                            <input name="rename_location_to" value="<?= e($place) ?>" maxlength="60" required aria-label="Name for <?= e($place) ?>">
+                            <button type="submit">Save</button>
+                        </form>
+                        <span class="game-played"><?= $played ?>×</span>
+                        <?php if ($place === default_location()): ?>
+                            <span class="default-badge">Default</span>
+                        <?php else: ?>
+                            <form method="post">
+                                <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                                <input type="hidden" name="default_location" value="<?= e($place) ?>">
+                                <button type="submit" class="link default-button">Make default</button>
+                            </form>
+                        <?php endif ?>
+                        <form method="post" class="game-delete"
+                              data-confirm="Are you sure you want to remove <?= e($place) ?> from the list?<?= $played ? ' Its ' . $played . ' past ' . ($played === 1 ? 'match stays' : 'matches stay') . ' in the history.' : '' ?>">
+                            <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                            <input type="hidden" name="delete_location" value="<?= e($place) ?>">
+                            <button type="submit" class="link">Delete</button>
+                        </form>
+                    </div>
+                <?php endforeach ?>
+            </div>
+            <p class="since game-note">Renaming a location also renames it in the history. × is how many recorded matches were played there. The default is preselected for new matches.</p>
+            <a href="admin.php" class="show-all">← Back to admin</a>
+            <script>
+                document.querySelectorAll('.game-delete').forEach(form => {
+                    form.addEventListener('submit', ev => {
+                        if (!confirm(form.dataset.confirm)) ev.preventDefault();
+                    });
+                });
+            </script>
+        <?php elseif (isset($_GET['icons'])): ?>
             <h2 class="label stats-title">Player icons</h2>
             <div class="game-list">
                 <?php foreach (people() as $id => $p): ?>
@@ -305,6 +379,7 @@ page_head('Crown Admin');
         </form>
         <nav class="home-links">
             <a href="admin.php?games" class="show-all">Manage games</a>
+            <a href="admin.php?locations" class="show-all">Locations</a>
             <a href="admin.php?icons" class="show-all">Player icons</a>
         </nav>
         <h2 class="label history-title">History</h2>

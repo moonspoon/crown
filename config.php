@@ -19,7 +19,8 @@ return [
         'p6' => ['name' => 'Gareth', 'icon' => '🐸'],
     ],
 
-    // Where matches are played.
+    // Starting list of where matches are played. Once locations are changed on the admin
+    // page, the list and default live in data/locations.json and these two are ignored.
     'locations' => [
         'Mill Hill Road',
         "Gareth's",
