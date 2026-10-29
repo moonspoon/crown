@@ -1,8 +1,16 @@
 <?php
 require __DIR__ . '/lib.php';
 
+// Matches restarted after the pandemic on this date; earlier ones are only counted when asked for.
+const PANDEMIC_RESTART = '2021-07-08';
+$includePrePandemic = isset($_GET['pre']);
+
 // Oldest first, so each change lasts until the next one (the last until now).
 $changes = array_reverse(history(null));
+$hasPrePandemic = $changes && substr($changes[0]['at'], 0, 10) < PANDEMIC_RESTART;
+if (!$includePrePandemic) {
+    $changes = array_values(array_filter($changes, fn($c) => substr($c['at'], 0, 10) >= PANDEMIC_RESTART));
+}
 $now = time();
 
 $heldFor = array_fill_keys(array_keys(people()), 0);
@@ -184,6 +192,17 @@ page_head('Crown Stats');
 ?>
 <main class="stage stats">
     <h1>Crown stats</h1>
+    <?php if ($hasPrePandemic): ?>
+        <form method="get" class="toggle">
+            <label>
+                <input type="checkbox" name="pre" value="1" <?= $includePrePandemic ? 'checked' : '' ?>
+                       onchange="this.form.submit()">
+                <span class="switch" aria-hidden="true"></span>
+                Include pre-pandemic matches
+            </label>
+            <noscript><button type="submit">Update</button></noscript>
+        </form>
+    <?php endif ?>
     <?php if (!$changes): ?>
         <p class="since">No matches recorded yet.</p>
     <?php else: ?>
