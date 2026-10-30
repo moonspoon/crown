@@ -76,6 +76,16 @@ if ($unknownGames) {
 }
 $maxGame = $gameRows ? max(array_column($gameRows, 1)) : 0;
 
+// When each game was last played, longest ago first.
+$gameLastPlayed = [];
+foreach ($changes as $c) {
+    if (!empty($c['game'])) {
+        $gameLastPlayed[$c['game']] = strtotime($c['at']);
+    }
+}
+asort($gameLastPlayed);
+$maxGameDaysSince = $gameLastPlayed ? max(1, (int) floor(($now - reset($gameLastPlayed)) / 86400)) : 1;
+
 // Matches per day of the week, Monday first, in the site's time zone.
 $weekdays = array_fill_keys(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], 0);
 foreach ($changes as $c) {
@@ -320,6 +330,22 @@ page_head('Crown Stats');
                 </div>
             <?php endforeach ?>
         </div>
+
+        <?php if ($gameLastPlayed): ?>
+            <h2 class="label stats-title">Days since game last played</h2>
+            <div class="bars since-crown" aria-label="Days since each game was last played">
+                <?php foreach ($gameLastPlayed as $game => $at): ?>
+                    <?php $d = (int) floor(($now - $at) / 86400) ?>
+                    <div class="bar-row" data-tip="<?= e($game . ': last played ' . date('j M Y', $at) . ($d ? ' (' . days($d * 86400) . ' ago)' : ' (today)')) ?>">
+                        <span class="bar-label"><?= e($game) ?></span>
+                        <span class="bar-track">
+                            <?php if ($d): ?><span class="bar" style="width: <?= round(100 * $d / $maxGameDaysSince, 1) ?>%"></span><?php endif ?>
+                        </span>
+                        <span class="bar-value"><?= $d ? e(days($d * 86400)) : 'Today' ?></span>
+                    </div>
+                <?php endforeach ?>
+            </div>
+        <?php endif ?>
 
         <h2 class="label stats-title">Most won game</h2>
         <div class="legend top-wins">
