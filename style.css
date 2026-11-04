@@ -170,8 +170,11 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .history small.where { font-size: .75rem; }
 .history time { color: var(--muted); white-space: nowrap; }
 .history-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.delete-entry button { font-size: .8rem; }
-.delete-entry button:hover { color: var(--err); }
+.entry-actions { display: flex; gap: 12px; font-size: .8rem; }
+.entry-actions a.link { color: var(--muted); text-decoration: underline; }
+.entry-actions a.link:hover { color: var(--text); }
+.entry-actions button { font-size: .8rem; }
+.entry-actions button:hover { color: var(--err); }
 .show-all { display: inline-block; margin-top: 16px; color: var(--muted); }
 .home-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; margin-top: 16px; }
 .home-links .show-all { margin-top: 0; }
@@ -246,7 +249,9 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .default-badge { color: var(--gold); font-size: .85rem; }
 .default-button { font-size: .85rem; white-space: nowrap; }
 
-.icon-row { display: grid; grid-template-columns: auto 1fr 4.5rem auto; align-items: center; gap: 10px; text-align: left; }
+.icon-row { display: grid; grid-template-columns: auto 1fr 4.5rem 44px auto; align-items: center; gap: 10px; text-align: left; }
+.icon-row input[type="color"] { width: 44px; height: 38px; padding: 2px; cursor: pointer; }
+.icon-row .colour-reset { grid-column: 2 / -1; justify-self: start; margin-top: -6px; font-size: .8rem; }
 .icon-row .avatar { width: 44px; height: 44px; font-size: 1.5rem; }
 .icon-row input {
     width: 100%;

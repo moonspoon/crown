@@ -4,6 +4,9 @@ const DATA_FILE = __DIR__ . '/data/holder.json';
 const LOG_FILE = __DIR__ . '/data/history.log';
 const GAMES_FILE = __DIR__ . '/data/games.json';
 const ICONS_FILE = __DIR__ . '/data/icons.json';
+const COLOURS_FILE = __DIR__ . '/data/colours.json';
+// Avatars without a chosen colour use the panel colour (--panel in style.css).
+const DEFAULT_AVATAR_COLOUR = '#2a2246';
 const LOCATIONS_FILE = __DIR__ . '/data/locations.json';
 // Matches arranged for a later date. Kept apart from the history, so they never touch the holder or the stats.
 const FUTURE_FILE = __DIR__ . '/data/future.json';
@@ -16,7 +19,7 @@ function config(): array
 
 date_default_timezone_set(config()['timezone'] ?? 'Europe/London');
 
-/** The people from config.php, with any icons changed on the admin page. */
+/** The people from config.php, with any icons and avatar colours (null if not chosen) set on the admin page. */
 function people(): array
 {
     $people = config()['people'];
@@ -26,7 +29,47 @@ function people(): array
             $people[$id]['icon'] = $icon;
         }
     }
+    $colours = is_file(COLOURS_FILE) ? json_decode((string) file_get_contents(COLOURS_FILE), true) : [];
+    foreach ($people as $id => &$person) {
+        $person['colour'] = $colours[$id] ?? null;
+    }
+    unset($person);
     return $people;
+}
+
+/** Sets the background colour of someone's avatar; the default colour clears it. */
+function set_colour(string $id, string $colour): void
+{
+    if (!isset(config()['people'][$id])) {
+        throw new InvalidArgumentException('Unknown person.');
+    }
+    $colour = clean_colour($colour);
+    $colours = is_file(COLOURS_FILE) ? (json_decode((string) file_get_contents(COLOURS_FILE), true) ?: []) : [];
+    if ($colour === DEFAULT_AVATAR_COLOUR) {
+        unset($colours[$id]);
+    } else {
+        $colours[$id] = $colour;
+    }
+    if (!is_dir(dirname(COLOURS_FILE))) {
+        mkdir(dirname(COLOURS_FILE), 0775, true);
+    }
+    file_put_contents(COLOURS_FILE, json_encode($colours, JSON_PRETTY_PRINT), LOCK_EX);
+}
+
+/** @return string the colour as #rrggbb; throws if it isn't one */
+function clean_colour(string $colour): string
+{
+    $colour = strtolower(trim($colour));
+    if (!preg_match('/^#[0-9a-f]{6}$/', $colour)) {
+        throw new InvalidArgumentException('Pick a colour.');
+    }
+    return $colour;
+}
+
+/** The style attribute giving an avatar its person's chosen background, or nothing. */
+function avatar_style(array $person): string
+{
+    return $person['colour'] ? ' style="background: ' . e($person['colour']) . '"' : '';
 }
 
 function set_icon(string $id, string $icon): string
@@ -34,6 +77,19 @@ function set_icon(string $id, string $icon): string
     if (!isset(config()['people'][$id])) {
         throw new InvalidArgumentException('Unknown person.');
     }
+    $icon = clean_icon($icon);
+    $icons = is_file(ICONS_FILE) ? (json_decode((string) file_get_contents(ICONS_FILE), true) ?: []) : [];
+    $icons[$id] = $icon;
+    if (!is_dir(dirname(ICONS_FILE))) {
+        mkdir(dirname(ICONS_FILE), 0775, true);
+    }
+    file_put_contents(ICONS_FILE, json_encode($icons, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+    return $icon;
+}
+
+/** @return string the icon, trimmed; throws if it isn't usable */
+function clean_icon(string $icon): string
+{
     $icon = trim($icon);
     if ($icon === '') {
         throw new InvalidArgumentException('Enter an emoji or a couple of letters.');
@@ -42,12 +98,6 @@ function set_icon(string $id, string $icon): string
     if (strlen($icon) > 32) {
         throw new InvalidArgumentException('Icons should be a single emoji or a couple of letters.');
     }
-    $icons = is_file(ICONS_FILE) ? (json_decode((string) file_get_contents(ICONS_FILE), true) ?: []) : [];
-    $icons[$id] = $icon;
-    if (!is_dir(dirname(ICONS_FILE))) {
-        mkdir(dirname(ICONS_FILE), 0775, true);
-    }
-    file_put_contents(ICONS_FILE, json_encode($icons, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
     return $icon;
 }
 
@@ -416,6 +466,38 @@ function add_history_entry(DateTimeInterface $at, string $winner, string $game, 
 }
 
 /**
+ * Replaces the history entry recorded at $oldAt for $oldTo. Done as a delete and re-add, so
+ * the chain of holders (and the current holder) follows a changed date or winner.
+ * @param string[] $players ids of everyone who played
+ */
+function update_history_entry(string $oldAt, string $oldTo, DateTimeInterface $at, string $winner, string $game, array $players, string $location): void
+{
+    // Check everything first, so a bad edit can't lose the original entry.
+    if (!isset(people()[$winner])) {
+        throw new InvalidArgumentException('Pick who won.');
+    }
+    if ($at->getTimestamp() > time()) {
+        throw new InvalidArgumentException("A history entry can't be in the future.");
+    }
+    validate_match($winner, $game, $players, $location, true);
+    if (!delete_history_entry($oldAt, $oldTo)) {
+        throw new InvalidArgumentException('That history entry no longer exists.');
+    }
+    add_history_entry($at, $winner, $game, $players, $location);
+}
+
+/** @return ?array the history entry recorded at $at for $to */
+function find_history_entry(string $at, string $to): ?array
+{
+    foreach (log_entries() as $entry) {
+        if ($entry['at'] === $at && $entry['to'] === $to) {
+            return $entry;
+        }
+    }
+    return null;
+}
+
+/**
  * Matches arranged for later, soonest first. A match stays listed until the end of its day,
  * so tonight's match is still the next one while it's being played (until its result is recorded).
  * @return array<array{at: string, game: ?string, players: string[], location: string}>
@@ -443,6 +525,38 @@ function save_future_matches(array $matches): void
  */
 function add_future_match(DateTimeInterface $at, string $game, array $players, string $location): void
 {
+    $matches = future_matches();
+    $matches[] = future_match($at, $game, $players, $location);
+    save_future_matches($matches);
+}
+
+/** Replaces the future match arranged for $oldAt. */
+function update_future_match(string $oldAt, DateTimeInterface $at, string $game, array $players, string $location): void
+{
+    $match = future_match($at, $game, $players, $location);
+    $matches = future_matches();
+    $index = array_search($oldAt, array_column($matches, 'at'), true);
+    if ($index === false) {
+        throw new InvalidArgumentException('That future match no longer exists.');
+    }
+    $matches[$index] = $match;
+    save_future_matches($matches);
+}
+
+/** @return ?array the future match arranged for $at */
+function find_future_match(string $at): ?array
+{
+    foreach (future_matches() as $match) {
+        if ($match['at'] === $at) {
+            return $match;
+        }
+    }
+    return null;
+}
+
+/** Checks a future match's details and returns it as stored. */
+function future_match(DateTimeInterface $at, string $game, array $players, string $location): array
+{
     if ($at->getTimestamp() <= time()) {
         throw new InvalidArgumentException('A future match needs a date in the future.');
     }
@@ -458,14 +572,12 @@ function add_future_match(DateTimeInterface $at, string $game, array $players, s
             throw new InvalidArgumentException('Unknown person.');
         }
     }
-    $matches = future_matches();
-    $matches[] = [
+    return [
         'at' => $at->format(DATE_ATOM),
         'game' => $game === '' ? null : $game,
         'players' => $players,
         'location' => $location,
     ];
-    save_future_matches($matches);
 }
 
 /** @return bool false if no future match was arranged for $at */
@@ -560,13 +672,16 @@ function history_list(array $history, ?string $deleteToken = null): void
                 <div class="history-meta">
                     <time datetime="<?= e($h['at']) ?>"><?= e($h['at']) ?></time>
                     <?php if ($deleteToken !== null): ?>
-                        <form method="post" class="delete-entry"
-                              data-confirm="<?= e(person_name($h['to']) . (empty($h['game']) ? '' : ' winning ' . $h['game'])) ?>">
-                            <input type="hidden" name="csrf" value="<?= e($deleteToken) ?>">
-                            <input type="hidden" name="delete_at" value="<?= e($h['at']) ?>">
-                            <input type="hidden" name="delete_to" value="<?= e($h['to']) ?>">
-                            <button type="submit" class="link">Delete</button>
-                        </form>
+                        <div class="entry-actions">
+                            <a class="link" href="admin.php?<?= e(http_build_query(['edit' => $h['at'], 'to' => $h['to']])) ?>">Edit</a>
+                            <form method="post" class="delete-entry"
+                                  data-confirm="<?= e(person_name($h['to']) . (empty($h['game']) ? '' : ' winning ' . $h['game'])) ?>">
+                                <input type="hidden" name="csrf" value="<?= e($deleteToken) ?>">
+                                <input type="hidden" name="delete_at" value="<?= e($h['at']) ?>">
+                                <input type="hidden" name="delete_to" value="<?= e($h['to']) ?>">
+                                <button type="submit" class="link">Delete</button>
+                            </form>
+                        </div>
                     <?php endif ?>
                 </div>
             </li>
@@ -612,11 +727,14 @@ function future_list(array $matches, ?string $deleteToken = null): void
                 <div class="history-meta">
                     <time datetime="<?= e($m['at']) ?>"><?= e($m['at']) ?></time>
                     <?php if ($deleteToken !== null): ?>
-                        <form method="post" class="delete-future">
-                            <input type="hidden" name="csrf" value="<?= e($deleteToken) ?>">
-                            <input type="hidden" name="delete_future" value="<?= e($m['at']) ?>">
-                            <button type="submit" class="link">Delete</button>
-                        </form>
+                        <div class="entry-actions">
+                            <a class="link" href="admin.php?<?= e(http_build_query(['edit_future' => $m['at']])) ?>">Edit</a>
+                            <form method="post" class="delete-future">
+                                <input type="hidden" name="csrf" value="<?= e($deleteToken) ?>">
+                                <input type="hidden" name="delete_future" value="<?= e($m['at']) ?>">
+                                <button type="submit" class="link">Delete</button>
+                            </form>
+                        </div>
                     <?php endif ?>
                 </div>
             </li>

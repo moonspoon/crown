@@ -29,8 +29,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!empty($_SESSION['admin']) && isset($_POST['icon_for'], $_POST['icon'])) {
         $id = (string) $_POST['icon_for'];
         try {
-            $icon = set_icon($id, (string) $_POST['icon']);
-            $message = people()[$id]['name'] . "'s icon is now $icon.";
+            // Check both before saving either, so a bad colour doesn't half-save the row.
+            clean_icon((string) $_POST['icon']);
+            if (isset($_POST['colour'])) {
+                clean_colour((string) $_POST['colour']);
+            }
+            set_icon($id, (string) $_POST['icon']);
+            if (isset($_POST['colour'])) {
+                set_colour($id, (string) $_POST['colour']);
+            }
+            $message = people()[$id]['name'] . "'s details saved.";
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
@@ -93,8 +101,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $game = (string) ($_POST['game'] ?? '');
             $players = array_map('strval', (array) ($_POST['players'] ?? []));
             $location = (string) ($_POST['location'] ?? '');
-            // A date still to come arranges a match; it has no winner and stays out of the history.
-            if ($at->getTimestamp() > time()) {
+            if (isset($_POST['edit_at'], $_POST['edit_to'])) {
+                update_history_entry((string) $_POST['edit_at'], (string) $_POST['edit_to'], $at, $winner, $game, $players, $location);
+                header('Location: admin.php?edited');
+            } elseif (isset($_POST['edit_future'])) {
+                update_future_match((string) $_POST['edit_future'], $at, $game, $players, $location);
+                header('Location: admin.php?edited=future');
+            } elseif ($at->getTimestamp() > time()) {
+                // A date still to come arranges a match; it has no winner and stays out of the history.
                 add_future_match($at, $game, $players, $location);
                 header('Location: admin.php?added=future');
             } else {
@@ -139,6 +153,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (isset($_GET['added']) && !$error) {
     $message = $_GET['added'] === 'future' ? 'Future match added.' : 'History entry added.';
+}
+if (isset($_GET['edited']) && !$error) {
+    $message = $_GET['edited'] === 'future' ? 'Future match updated.' : 'History entry updated.';
+}
+
+// The history entry or future match being edited with the add form, if any.
+$editing = null;
+if (isset($_GET['edit'], $_GET['to'])) {
+    $editing = find_history_entry((string) $_GET['edit'], (string) $_GET['to']);
+} elseif (isset($_GET['edit_future'])) {
+    $editing = find_future_match((string) $_GET['edit_future']);
+}
+if ((isset($_GET['edit']) || isset($_GET['edit_future'])) && !$editing && !$error) {
+    $error = 'That entry no longer exists.';
 }
 
 $holder = current_holder();
@@ -208,21 +236,36 @@ page_head('Crown Admin');
                 });
             </script>
         <?php elseif (isset($_GET['icons'])): ?>
-            <h2 class="label stats-title">Player icons</h2>
+            <h2 class="label stats-title">Player details</h2>
             <div class="game-list">
                 <?php foreach (people() as $id => $p): ?>
                     <form method="post" class="icon-row">
                         <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
                         <input type="hidden" name="icon_for" value="<?= e($id) ?>">
-                        <span class="avatar"><?= e($p['icon']) ?></span>
+                        <span class="avatar"<?= avatar_style($p) ?>><?= e($p['icon']) ?></span>
                         <span class="icon-name"><?= e($p['name']) ?></span>
                         <input name="icon" value="<?= e($p['icon']) ?>" required aria-label="Icon for <?= e($p['name']) ?>">
+                        <input type="color" name="colour" value="<?= e($p['colour'] ?? DEFAULT_AVATAR_COLOUR) ?>"
+                               aria-label="Background colour for <?= e($p['name']) ?>">
                         <button type="submit">Save</button>
+                        <button type="button" class="link colour-reset">Default colour</button>
                     </form>
                 <?php endforeach ?>
             </div>
-            <p class="since game-note">Type or paste an emoji (on a phone, switch to the emoji keyboard), or a couple of letters.</p>
+            <p class="since game-note">Type or paste an emoji (on a phone, switch to the emoji keyboard), or a couple of letters. Pick a background colour for the avatar, then Save.</p>
             <a href="admin.php" class="show-all">← Back to admin</a>
+            <script>
+                // Preview the colour on the avatar before saving.
+                document.querySelectorAll('.icon-row').forEach(row => {
+                    const avatar = row.querySelector('.avatar');
+                    const colour = row.querySelector('input[type="color"]');
+                    colour.addEventListener('input', () => { avatar.style.background = colour.value; });
+                    row.querySelector('.colour-reset').addEventListener('click', () => {
+                        colour.value = <?= json_encode(DEFAULT_AVATAR_COLOUR) ?>;
+                        avatar.style.background = '';
+                    });
+                });
+            </script>
         <?php elseif (isset($_GET['games'])): ?>
             <h2 class="label stats-title">Games</h2>
             <form method="post" class="game-add">
@@ -260,17 +303,30 @@ page_head('Crown Admin');
                     });
                 });
             </script>
-        <?php elseif (isset($_GET['add'])): ?>
+        <?php elseif (isset($_GET['add']) || $editing): ?>
             <?php
-            // Keep the admin's choices after a validation error; otherwise start with everyone playing.
-            $chosenAt = $_POST['at'] ?? date('Y-m-d\TH:i');
-            $chosenWinner = $_POST['winner'] ?? null;
-            $chosenGame = $_POST['game'] ?? null;
-            $chosenPlayers = isset($_POST['add_entry']) ? (array) ($_POST['players'] ?? []) : array_keys(people());
+            // Keep the admin's choices after a validation error; otherwise start from the entry being
+            // edited, or with everyone playing for a new match.
+            $isFuture = isset($_GET['edit_future']);
+            // From the Future matches list, start a week ahead at the usual 7:45pm so the form opens for a future match.
+            $chosenAt = $_POST['at'] ?? ($editing
+                ? date('Y-m-d\TH:i', strtotime($editing['at']))
+                : date('Y-m-d\TH:i', isset($_GET['future']) ? strtotime('+1 week 19:45') : time()));
+            $chosenWinner = $_POST['winner'] ?? ($editing['to'] ?? null);
+            $chosenGame = $_POST['game'] ?? ($editing['game'] ?? null);
+            $chosenPlayers = isset($_POST['add_entry'])
+                ? (array) ($_POST['players'] ?? [])
+                : ($editing ? array_merge($isFuture ? [] : [$editing['to']], $editing['players'] ?? []) : array_keys(people()));
             ?>
             <form method="post" class="confirm add-entry">
                 <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
-                <h2 class="label">Add a match</h2>
+                <?php if ($editing && $isFuture): ?>
+                    <input type="hidden" name="edit_future" value="<?= e($editing['at']) ?>">
+                <?php elseif ($editing): ?>
+                    <input type="hidden" name="edit_at" value="<?= e($editing['at']) ?>">
+                    <input type="hidden" name="edit_to" value="<?= e($editing['to']) ?>">
+                <?php endif ?>
+                <h2 class="label"><?= $editing ? 'Edit match' : 'Add a match' ?></h2>
 
                 <fieldset>
                     <legend class="label">When</legend>
@@ -278,7 +334,7 @@ page_head('Crown Admin');
                     <p class="since future-note" hidden>A future date arranges the match: it shows as the next match, not in the history or stats.</p>
                 </fieldset>
 
-                <?php location_picker($_POST['location'] ?? null) ?>
+                <?php location_picker($_POST['location'] ?? ($editing ? entry_location($editing) : null)) ?>
 
                 <fieldset class="winner-field">
                     <legend class="label">Who won</legend>
@@ -323,7 +379,11 @@ page_head('Crown Admin');
                     </div>
                 </fieldset>
 
-                <button type="submit" name="add_entry" value="1" class="primary" data-past="Add to history" data-future="Add future match">Add to history</button>
+                <?php if ($editing): ?>
+                    <button type="submit" name="add_entry" value="1" class="primary">Save changes</button>
+                <?php else: ?>
+                    <button type="submit" name="add_entry" value="1" class="primary" data-past="Add to history" data-future="Add future match">Add to history</button>
+                <?php endif ?>
                 <a href="admin.php" class="cancel">Cancel</a>
             </form>
             <script>
@@ -351,7 +411,7 @@ page_head('Crown Admin');
                 <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
                 <input type="hidden" name="holder" value="<?= e($pending) ?>">
                 <p class="label">Crown goes to</p>
-                <span class="avatar"><?= e(people()[$pending]['icon']) ?></span>
+                <span class="avatar"<?= avatar_style(people()[$pending]) ?>><?= e(people()[$pending]['icon']) ?></span>
                 <h2><?= e(people()[$pending]['name']) ?></h2>
 
                 <?php location_picker($_POST['location'] ?? null) ?>
@@ -403,7 +463,7 @@ page_head('Crown Admin');
             <?php foreach (people() as $id => $p): ?>
                 <button type="submit" name="holder" value="<?= e($id) ?>"
                         class="<?= $id === $holder['id'] ? 'has-crown' : '' ?>">
-                    <span class="avatar"><?= e($p['icon']) ?></span>
+                    <span class="avatar"<?= avatar_style($p) ?>><?= e($p['icon']) ?></span>
                     <span class="name"><?= e($p['name']) ?></span>
                 </button>
             <?php endforeach ?>
@@ -411,9 +471,10 @@ page_head('Crown Admin');
         <nav class="home-links">
             <a href="admin.php?games" class="show-all">Manage games</a>
             <a href="admin.php?locations" class="show-all">Locations</a>
-            <a href="admin.php?icons" class="show-all">Player icons</a>
+            <a href="admin.php?icons" class="show-all">Player details</a>
         </nav>
         <h2 class="label history-title">Future matches</h2>
+        <a href="admin.php?add&amp;future" class="show-all add-entry-link">+ Add an entry</a>
         <?php future_list(future_matches(), $_SESSION['csrf']) ?>
         <h2 class="label history-title">History</h2>
         <a href="admin.php?add" class="show-all add-entry-link">+ Add an entry</a>
