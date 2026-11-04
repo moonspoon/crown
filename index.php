@@ -29,6 +29,7 @@ page_head('The Crown');
                         Won against
                     <?php endif ?>
                     <?= e(implode(', ', array_map('person_name', $lastWin['players'] ?? []))) ?>
+                    <br>📍 <?= e(entry_location($lastWin)) ?>
                 </p>
             <?php endif ?>
         <?php else: ?>
