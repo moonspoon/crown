@@ -37,14 +37,6 @@ page_head('The Crown');
             <div class="avatar big empty">?</div>
             <h1>Nobody yet</h1>
         <?php endif ?>
-        <?php if ($next): ?>
-            <p class="won next-match">
-                Next match <strong><time datetime="<?= e($next['at']) ?>"><?= e($next['at']) ?></time></strong>
-                <?php if ($next['game']): ?><br>playing <strong><?= e($next['game']) ?></strong><?php endif ?>
-                <?php if ($next['players']): ?><br>with <?= e(implode(', ', array_map('person_name', $next['players']))) ?><?php endif ?>
-                <br>📍 <?= e($next['location']) ?>
-            </p>
-        <?php endif ?>
     </div>
 
     <ul class="court">
@@ -55,6 +47,15 @@ page_head('The Crown');
             </li>
         <?php endforeach ?>
     </ul>
+
+    <?php if ($next): ?>
+        <p class="won next-match">
+            Next match <strong><time datetime="<?= e($next['at']) ?>"><?= e($next['at']) ?></time></strong>
+            <?php if ($next['game']): ?><br>playing <strong><?= e($next['game']) ?></strong><?php endif ?>
+            <?php if ($next['players']): ?><br>with <?= e(implode(', ', array_map('person_name', $next['players']))) ?><?php endif ?>
+            <br>📍 <?= e($next['location']) ?>
+        </p>
+    <?php endif ?>
 
     <nav class="home-links">
         <a href="history.php" class="show-all">Crown history</a>
