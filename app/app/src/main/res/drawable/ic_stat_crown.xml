@@ -1,0 +1,10 @@
+<!-- Status bar icon when you hold the crown. Status bar icons must be a single flat colour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M2,17L3.5,6.5L8,10.5L12,3.5L16,10.5L20.5,6.5L22,17Z M2,18.5H22V21H2Z" />
+</vector>

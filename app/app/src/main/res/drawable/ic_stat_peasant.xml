@@ -1,0 +1,11 @@
+<!-- Status bar icon when someone else holds the crown: a P for peasant. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M6,2.5H13.5A5.75,5.75 0,0 1,13.5 14H9.5V21.5H6Z M9.5,6V10.5H13.25A2.25,2.25 0,0 0,13.25 6Z" />
+</vector>
