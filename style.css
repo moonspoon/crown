@@ -38,6 +38,7 @@ h1 { margin: 12px 0 4px; font-size: 2rem; }
 .since { color: var(--muted); margin: 0; font-size: .9rem; }
 .won { margin: 8px 0 0; font-size: .95rem; line-height: 1.5; }
 .won strong { color: var(--gold); }
+.next-match { margin-top: 16px; color: var(--muted); }
 
 .holder { margin: 24px 0 40px; }
 
@@ -172,7 +173,7 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .delete-entry button { font-size: .8rem; }
 .delete-entry button:hover { color: var(--err); }
 .show-all { display: inline-block; margin-top: 16px; color: var(--muted); }
-.home-links { display: flex; justify-content: center; gap: 24px; margin-top: 16px; }
+.home-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; margin-top: 16px; }
 .home-links .show-all { margin-top: 0; }
 
 .stats-title { margin: 32px 0 12px; font-weight: 400; }

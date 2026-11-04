@@ -90,8 +90,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$at) {
                 throw new InvalidArgumentException('Enter when the match was played.');
             }
-            add_history_entry($at, $winner, (string) ($_POST['game'] ?? ''), array_map('strval', (array) ($_POST['players'] ?? [])), (string) ($_POST['location'] ?? ''));
-            header('Location: admin.php?added');
+            $game = (string) ($_POST['game'] ?? '');
+            $players = array_map('strval', (array) ($_POST['players'] ?? []));
+            $location = (string) ($_POST['location'] ?? '');
+            // A date still to come arranges a match; it has no winner and stays out of the history.
+            if ($at->getTimestamp() > time()) {
+                add_future_match($at, $game, $players, $location);
+                header('Location: admin.php?added=future');
+            } else {
+                add_history_entry($at, $winner, $game, $players, $location);
+                header('Location: admin.php?added');
+            }
             exit;
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
@@ -101,6 +110,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'History entry deleted.';
         } else {
             $error = 'That history entry no longer exists.';
+        }
+    } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_future'])) {
+        if (delete_future_match((string) $_POST['delete_future'])) {
+            $message = 'Future match deleted.';
+        } else {
+            $error = 'That future match no longer exists.';
         }
     } elseif (!empty($_SESSION['admin']) && isset($_POST['holder'])) {
         $id = (string) $_POST['holder'];
@@ -123,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['added']) && !$error) {
-    $message = 'History entry added.';
+    $message = $_GET['added'] === 'future' ? 'Future match added.' : 'History entry added.';
 }
 
 $holder = current_holder();
@@ -255,16 +270,17 @@ page_head('Crown Admin');
             ?>
             <form method="post" class="confirm add-entry">
                 <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
-                <h2 class="label">Add a past match</h2>
+                <h2 class="label">Add a match</h2>
 
                 <fieldset>
                     <legend class="label">When</legend>
-                    <input type="datetime-local" name="at" value="<?= e($chosenAt) ?>" max="<?= e(date('Y-m-d\TH:i')) ?>" required>
+                    <input type="datetime-local" name="at" value="<?= e($chosenAt) ?>" required>
+                    <p class="since future-note" hidden>A future date arranges the match: it shows as the next match, not in the history or stats.</p>
                 </fieldset>
 
                 <?php location_picker($_POST['location'] ?? null) ?>
 
-                <fieldset>
+                <fieldset class="winner-field">
                     <legend class="label">Who won</legend>
                     <div class="chips">
                         <?php foreach (people() as $id => $p): ?>
@@ -278,11 +294,11 @@ page_head('Crown Admin');
                 </fieldset>
 
                 <fieldset>
-                    <legend class="label">Game won</legend>
+                    <legend class="label" data-past="Game won" data-future="Game">Game won</legend>
                     <div class="chips">
                         <label>
                             <input type="radio" name="game" value="" <?= in_array($chosenGame, [null, ''], true) ? 'checked' : '' ?>>
-                            <span>Unknown</span>
+                            <span data-past="Unknown" data-future="Not decided">Unknown</span>
                         </label>
                         <?php foreach (games() as $game): ?>
                             <label>
@@ -295,7 +311,7 @@ page_head('Crown Admin');
                 </fieldset>
 
                 <fieldset>
-                    <legend class="label">Who played</legend>
+                    <legend class="label" data-past="Who played" data-future="Who's playing">Who played</legend>
                     <div class="chips">
                         <?php foreach (people() as $id => $p): ?>
                             <label>
@@ -307,9 +323,24 @@ page_head('Crown Admin');
                     </div>
                 </fieldset>
 
-                <button type="submit" name="add_entry" value="1" class="primary">Add to history</button>
+                <button type="submit" name="add_entry" value="1" class="primary" data-past="Add to history" data-future="Add future match">Add to history</button>
                 <a href="admin.php" class="cancel">Cancel</a>
             </form>
+            <script>
+                // A future date has no winner yet, so hide that question and reword the rest.
+                const addForm = document.querySelector('.add-entry');
+                const updateForFuture = () => {
+                    const future = new Date(addForm.at.value) > new Date();
+                    addForm.querySelector('.winner-field').hidden = future;
+                    addForm.querySelectorAll('input[name="winner"]').forEach(r => { r.required = !future; });
+                    addForm.querySelector('.future-note').hidden = !future;
+                    addForm.querySelectorAll('[data-future]').forEach(el => {
+                        el.textContent = future ? el.dataset.future : el.dataset.past;
+                    });
+                };
+                addForm.at.addEventListener('input', updateForFuture);
+                updateForFuture();
+            </script>
         <?php elseif ($pending): ?>
             <?php
             // Keep the admin's choices after a validation error; otherwise assume the old holder played.
@@ -382,6 +413,8 @@ page_head('Crown Admin');
             <a href="admin.php?locations" class="show-all">Locations</a>
             <a href="admin.php?icons" class="show-all">Player icons</a>
         </nav>
+        <h2 class="label history-title">Future matches</h2>
+        <?php future_list(future_matches(), $_SESSION['csrf']) ?>
         <h2 class="label history-title">History</h2>
         <a href="admin.php?add" class="show-all add-entry-link">+ Add an entry</a>
         <?php

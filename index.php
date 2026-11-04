@@ -9,6 +9,7 @@ $lastWin = history(1)[0] ?? null;
 if (($lastWin['to'] ?? null) !== $holder['id'] || (empty($lastWin['game']) && empty($lastWin['players']))) {
     $lastWin = null;
 }
+$next = future_matches()[0] ?? null;
 
 page_head('The Crown');
 ?>
@@ -36,6 +37,14 @@ page_head('The Crown');
             <div class="avatar big empty">?</div>
             <h1>Nobody yet</h1>
         <?php endif ?>
+        <?php if ($next): ?>
+            <p class="won next-match">
+                Next match <strong><time datetime="<?= e($next['at']) ?>"><?= e($next['at']) ?></time></strong>
+                <?php if ($next['game']): ?><br>playing <strong><?= e($next['game']) ?></strong><?php endif ?>
+                <?php if ($next['players']): ?><br>with <?= e(implode(', ', array_map('person_name', $next['players']))) ?><?php endif ?>
+                <br>📍 <?= e($next['location']) ?>
+            </p>
+        <?php endif ?>
     </div>
 
     <ul class="court">
@@ -49,6 +58,7 @@ page_head('The Crown');
 
     <nav class="home-links">
         <a href="history.php" class="show-all">Crown history</a>
+        <a href="future.php" class="show-all">Future matches</a>
         <a href="stats.php" class="show-all">Stats</a>
     </nav>
 </main>
@@ -61,6 +71,7 @@ const since = document.querySelector('.since');
 if (since && since.dataset.since) {
     since.textContent = 'since ' + new Date(since.dataset.since).toLocaleString();
 }
+document.querySelectorAll('.next-match time').forEach(t => { t.textContent = match_time(t.dateTime); });
 
 // Pick up changes made from the admin page without a manual refresh.
 async function poll() {

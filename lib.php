@@ -5,6 +5,8 @@ const LOG_FILE = __DIR__ . '/data/history.log';
 const GAMES_FILE = __DIR__ . '/data/games.json';
 const ICONS_FILE = __DIR__ . '/data/icons.json';
 const LOCATIONS_FILE = __DIR__ . '/data/locations.json';
+// Matches arranged for a later date. Kept apart from the history, so they never touch the holder or the stats.
+const FUTURE_FILE = __DIR__ . '/data/future.json';
 
 function config(): array
 {
@@ -109,6 +111,14 @@ function rename_location(string $old, string $new): string
         unset($entry);
         save_log_entries($entries, false);
     }
+    $future = future_matches();
+    foreach ($future as &$match) {
+        if ($match['location'] === $old) {
+            $match['location'] = $new;
+        }
+    }
+    unset($match);
+    save_future_matches($future);
     return $new;
 }
 
@@ -244,6 +254,14 @@ function rename_game(string $old, string $new): string
         unset($entry);
         save_log_entries($entries, false);
     }
+    $future = future_matches();
+    foreach ($future as &$match) {
+        if ($match['game'] === $old) {
+            $match['game'] = $new;
+        }
+    }
+    unset($match);
+    save_future_matches($future);
     return $new;
 }
 
@@ -334,6 +352,7 @@ function set_holder(string $id, string $game, array $players, string $location):
         'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
     ]);
     file_put_contents(LOG_FILE, $entry . "\n", FILE_APPEND | LOCK_EX);
+    forget_future_match_on(new DateTimeImmutable($now));
 }
 
 /**
@@ -393,6 +412,83 @@ function add_history_entry(DateTimeInterface $at, string $winner, string $game, 
     }
     array_splice($entries, $index, 0, [$entry]);
     save_log_entries($entries, $index === count($entries) - 1);
+    forget_future_match_on($at);
+}
+
+/**
+ * Matches arranged for later, soonest first. A match stays listed until the end of its day,
+ * so tonight's match is still the next one while it's being played (until its result is recorded).
+ * @return array<array{at: string, game: ?string, players: string[], location: string}>
+ */
+function future_matches(): array
+{
+    $all = is_file(FUTURE_FILE) ? json_decode((string) file_get_contents(FUTURE_FILE), true) : [];
+    $today = strtotime('today');
+    $matches = array_values(array_filter($all ?: [], fn($m) => strtotime($m['at']) >= $today));
+    usort($matches, fn($a, $b) => strtotime($a['at']) <=> strtotime($b['at']));
+    return $matches;
+}
+
+function save_future_matches(array $matches): void
+{
+    if (!is_dir(dirname(FUTURE_FILE))) {
+        mkdir(dirname(FUTURE_FILE), 0775, true);
+    }
+    file_put_contents(FUTURE_FILE, json_encode(array_values($matches), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+/**
+ * Arranges a match for a later date. The game and who's playing may not be known yet.
+ * @param string[] $players ids of everyone expected to play
+ */
+function add_future_match(DateTimeInterface $at, string $game, array $players, string $location): void
+{
+    if ($at->getTimestamp() <= time()) {
+        throw new InvalidArgumentException('A future match needs a date in the future.');
+    }
+    if (!in_array($location, locations(), true)) {
+        throw new InvalidArgumentException('Pick where the match will be played.');
+    }
+    if ($game !== '' && !in_array($game, games(), true)) {
+        throw new InvalidArgumentException('Pick which game will be played.');
+    }
+    $players = array_values(array_unique($players));
+    foreach ($players as $player) {
+        if (!isset(people()[$player])) {
+            throw new InvalidArgumentException('Unknown person.');
+        }
+    }
+    $matches = future_matches();
+    $matches[] = [
+        'at' => $at->format(DATE_ATOM),
+        'game' => $game === '' ? null : $game,
+        'players' => $players,
+        'location' => $location,
+    ];
+    save_future_matches($matches);
+}
+
+/** @return bool false if no future match was arranged for $at */
+function delete_future_match(string $at): bool
+{
+    $matches = future_matches();
+    $kept = array_filter($matches, fn($m) => $m['at'] !== $at);
+    if (count($kept) === count($matches)) {
+        return false;
+    }
+    save_future_matches($kept);
+    return true;
+}
+
+/** Once a match's result is recorded, it's no longer a future match. */
+function forget_future_match_on(DateTimeInterface $day): void
+{
+    $date = $day->format('Y-m-d');
+    $matches = future_matches();
+    $kept = array_filter($matches, fn($m) => substr($m['at'], 0, 10) !== $date);
+    if (count($kept) !== count($matches)) {
+        save_future_matches($kept);
+    }
 }
 
 /** Every history entry, oldest first. */
@@ -492,6 +588,55 @@ function history_list(array $history, ?string $deleteToken = null): void
     <?php
 }
 
+/**
+ * Renders future_matches(), soonest first, with times shown in the viewer's locale.
+ * Pass the admin's CSRF token to add a delete button to each match.
+ */
+function future_list(array $matches, ?string $deleteToken = null): void
+{
+    if (!$matches) {
+        echo '<p class="since">No future matches arranged.</p>';
+        return;
+    }
+    ?>
+    <ol class="history future">
+        <?php foreach ($matches as $m): ?>
+            <li>
+                <div>
+                    <span><?= $m['game'] ? '<strong>' . e($m['game']) . '</strong>' : 'Game not decided yet' ?></span>
+                    <?php if ($m['players']): ?>
+                        <small>Playing: <?= e(implode(', ', array_map('person_name', $m['players']))) ?></small>
+                    <?php endif ?>
+                    <small class="where">📍 <?= e($m['location']) ?></small>
+                </div>
+                <div class="history-meta">
+                    <time datetime="<?= e($m['at']) ?>"><?= e($m['at']) ?></time>
+                    <?php if ($deleteToken !== null): ?>
+                        <form method="post" class="delete-future">
+                            <input type="hidden" name="csrf" value="<?= e($deleteToken) ?>">
+                            <input type="hidden" name="delete_future" value="<?= e($m['at']) ?>">
+                            <button type="submit" class="link">Delete</button>
+                        </form>
+                    <?php endif ?>
+                </div>
+            </li>
+        <?php endforeach ?>
+    </ol>
+    <script>
+        document.querySelectorAll('.future time').forEach(t => {
+            t.textContent = match_time(t.dateTime);
+        });
+        document.querySelectorAll('.delete-future').forEach(form => {
+            form.addEventListener('submit', ev => {
+                if (!confirm(`Are you sure you want to delete the match on ${match_time(form.delete_future.value)}?`)) {
+                    ev.preventDefault();
+                }
+            });
+        });
+    </script>
+    <?php
+}
+
 function person_name(?string $id): string
 {
     if ($id === null) {
@@ -519,6 +664,12 @@ function page_head(string $title): void
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="style.css?v=<?= filemtime(__DIR__ . '/style.css') ?>">
+<script>
+// How future match times are shown, in the viewer's locale, e.g. "Thu 12 Nov, 19:45".
+function match_time(iso) {
+    return new Date(iso).toLocaleString([], {weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+}
+</script>
 </head>
 <body>
 <?php
