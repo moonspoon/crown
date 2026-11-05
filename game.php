@@ -145,6 +145,9 @@ page_head(game_label($name));
                 </div>
             <?php endforeach ?>
         </div>
+
+        <h2 class="label stats-title">History</h2>
+        <?php history_list(array_reverse($matches)) ?>
     <?php endif ?>
     <a href="games.php<?= include_pre_pandemic() ? '?pre=1' : '' ?>" class="show-all">← All games</a>
 </main>
