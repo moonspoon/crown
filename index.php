@@ -18,8 +18,10 @@ page_head('The Crown');
     <div class="holder" id="holder">
         <?php if ($current): ?>
             <div class="crown">👑</div>
-            <div class="avatar big"<?= avatar_style($current) ?>><?= e($current['icon']) ?></div>
-            <h1><?= e($current['name']) ?></h1>
+            <a class="player-link" href="player.php?id=<?= e(urlencode($holder['id'])) ?>">
+                <div class="avatar big"<?= avatar_style($current) ?>><?= e($current['icon']) ?></div>
+                <h1><?= e($current['name']) ?></h1>
+            </a>
             <p class="since" data-since="<?= e($holder['since']) ?>"></p>
             <?php if ($lastWin): ?>
                 <p class="won">
@@ -42,8 +44,10 @@ page_head('The Crown');
     <ul class="court">
         <?php foreach ($people as $id => $p): ?>
             <li class="<?= $id === $holder['id'] ? 'has-crown' : '' ?>">
-                <span class="avatar"<?= avatar_style($p) ?>><?= e($p['icon']) ?></span>
-                <span class="name"><?= e($p['name']) ?></span>
+                <a class="player-link" href="player.php?id=<?= e(urlencode($id)) ?>">
+                    <span class="avatar"<?= avatar_style($p) ?>><?= e($p['icon']) ?></span>
+                    <span class="name"><?= e($p['name']) ?></span>
+                </a>
             </li>
         <?php endforeach ?>
     </ul>
