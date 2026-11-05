@@ -357,3 +357,8 @@ button.link { background: none; border: 0; color: var(--muted); font: inherit; t
 /* Home page tiles and the holder link to each player's page. */
 .player-link { color: inherit; text-decoration: none; display: contents; }
 .player-link:hover .name, .player-link:hover h1 { text-decoration: underline; }
+
+/* Games page: filter by number of players. */
+.filter-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px 0; }
+.filter-pills a { padding: 6px 14px; border-radius: 999px; border: 2px solid #4a3f72; background: var(--panel); color: var(--text); text-decoration: none; font-size: .9rem; }
+.filter-pills a.active { border-color: var(--gold); background: rgba(245, 197, 66, .18); }
