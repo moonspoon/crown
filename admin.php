@@ -403,9 +403,14 @@ page_head('Crown Admin');
             </script>
         <?php elseif ($pending): ?>
             <?php
-            // Keep the admin's choices after a validation error; otherwise assume the old holder played.
-            $chosenGame = $_POST['game'] ?? null;
-            $chosenPlayers = isset($_POST['confirm']) ? (array) ($_POST['players'] ?? []) : array_filter([$holder['id']]);
+            // Keep the admin's choices after a validation error; otherwise start from today's future match
+            // if one was arranged, or else assume the old holder played.
+            $today = array_values(array_filter(future_matches(), fn($m) => substr($m['at'], 0, 10) === date('Y-m-d')))[0] ?? null;
+            $chosenGame = $_POST['game'] ?? ($today['game'] ?? null);
+            $chosenPlayers = isset($_POST['confirm'])
+                ? (array) ($_POST['players'] ?? [])
+                : (($today['players'] ?? []) ?: array_filter([$holder['id']]));
+            $chosenLocation = $_POST['location'] ?? ($today['location'] ?? null);
             ?>
             <form method="post" class="confirm">
                 <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
@@ -414,7 +419,7 @@ page_head('Crown Admin');
                 <span class="avatar"<?= avatar_style(people()[$pending]) ?>><?= e(people()[$pending]['icon']) ?></span>
                 <h2><?= e(people()[$pending]['name']) ?></h2>
 
-                <?php location_picker($_POST['location'] ?? null) ?>
+                <?php location_picker($chosenLocation) ?>
 
                 <fieldset>
                     <legend class="label">Game won</legend>
