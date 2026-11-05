@@ -4,6 +4,7 @@ const DATA_FILE = __DIR__ . '/data/holder.json';
 const LOG_FILE = __DIR__ . '/data/history.log';
 const GAMES_FILE = __DIR__ . '/data/games.json';
 const GAME_ICONS_FILE = __DIR__ . '/data/game_icons.json';
+const GAME_PLAYERS_FILE = __DIR__ . '/data/game_players.json';
 const ICONS_FILE = __DIR__ . '/data/icons.json';
 const COLOURS_FILE = __DIR__ . '/data/colours.json';
 // Avatars without a chosen colour use the panel colour (--panel in style.css).
@@ -319,7 +320,63 @@ function rename_game(string $old, string $new): string
         unset($icons[$old]);
         save_game_icons($icons);
     }
+    $ranges = game_players();
+    if (isset($ranges[$old]) && $new !== $old) {
+        $ranges[$new] = $ranges[$old];
+        unset($ranges[$old]);
+        save_game_players($ranges);
+    }
     return $new;
+}
+
+/** @return array<string, array{min: ?int, max: ?int}> how many can play each game, by game name */
+function game_players(): array
+{
+    return is_file(GAME_PLAYERS_FILE) ? (json_decode((string) file_get_contents(GAME_PLAYERS_FILE), true) ?: []) : [];
+}
+
+function save_game_players(array $ranges): void
+{
+    if (!is_dir(dirname(GAME_PLAYERS_FILE))) {
+        mkdir(dirname(GAME_PLAYERS_FILE), 0775, true);
+    }
+    file_put_contents(GAME_PLAYERS_FILE, json_encode($ranges, JSON_PRETTY_PRINT), LOCK_EX);
+}
+
+/**
+ * Checks a game's minimum and maximum players as typed; a blank box means not set.
+ * @return array{min: ?int, max: ?int}
+ */
+function clean_game_players(string $min, string $max): array
+{
+    $range = [];
+    foreach (['min' => $min, 'max' => $max] as $key => $value) {
+        $value = trim($value);
+        if ($value === '') {
+            $range[$key] = null;
+        } elseif (ctype_digit($value) && (int) $value >= 1 && (int) $value <= 20) {
+            $range[$key] = (int) $value;
+        } else {
+            throw new InvalidArgumentException('Players should be a number from 1 to 20.');
+        }
+    }
+    if ($range['min'] !== null && $range['max'] !== null && $range['min'] > $range['max']) {
+        throw new InvalidArgumentException("Minimum players can't be more than maximum players.");
+    }
+    return $range;
+}
+
+/** Sets how many can play a game; blank boxes clear it. */
+function set_game_players(string $game, string $min, string $max): void
+{
+    $range = clean_game_players($min, $max);
+    $ranges = game_players();
+    if ($range['min'] === null && $range['max'] === null) {
+        unset($ranges[$game]);
+    } else {
+        $ranges[$game] = $range;
+    }
+    save_game_players($ranges);
 }
 
 /** @return array<string, string> icons chosen for games on the admin page, by game name */

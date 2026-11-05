@@ -79,19 +79,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!empty($_SESSION['admin']) && isset($_POST['rename_from'], $_POST['rename_to'])) {
         $from = (string) $_POST['rename_from'];
         try {
-            // Check the icon first, so a bad one doesn't leave the game renamed without it.
+            // Check the icon and player numbers first, so a bad one doesn't leave the game half saved.
             $icon = trim((string) ($_POST['game_icon'] ?? ''));
             if ($icon !== '') {
                 clean_icon($icon);
             }
+            $hasPlayers = isset($_POST['min_players'], $_POST['max_players']);
+            $range = $hasPlayers ? clean_game_players((string) $_POST['min_players'], (string) $_POST['max_players']) : null;
             $iconChanged = isset($_POST['game_icon']) && $icon !== (game_icons()[$from] ?? '');
+            $playersChanged = $hasPlayers && $range != (game_players()[$from] ?? ['min' => null, 'max' => null]);
             $to = rename_game($from, (string) $_POST['rename_to']);
             if (isset($_POST['game_icon'])) {
                 set_game_icon($to, $icon);
             }
+            if ($hasPlayers) {
+                set_game_players($to, (string) $_POST['min_players'], (string) $_POST['max_players']);
+            }
             $message = match (true) {
                 $to !== $from => "$from renamed to $to.",
-                $iconChanged => $icon === '' ? "$to's icon removed." : "$to's icon is now $icon.",
+                $iconChanged || $playersChanged => "$to saved.",
                 default => 'No change.',
             };
         } catch (InvalidArgumentException $ex) {
@@ -298,6 +304,15 @@ page_head('Crown Admin');
                                    aria-label="Icon for <?= e($game) ?>">
                             <input name="rename_to" value="<?= e($game) ?>" maxlength="60" required aria-label="Name for <?= e($game) ?>">
                             <button type="submit">Save</button>
+                            <?php $range = game_players()[$game] ?? [] ?>
+                            <span class="game-players">
+                                Players
+                                <input type="number" name="min_players" min="1" max="20" value="<?= e((string) ($range['min'] ?? '')) ?>"
+                                       placeholder="min" aria-label="Minimum players for <?= e($game) ?>">
+                                to
+                                <input type="number" name="max_players" min="1" max="20" value="<?= e((string) ($range['max'] ?? '')) ?>"
+                                       placeholder="max" aria-label="Maximum players for <?= e($game) ?>">
+                            </span>
                         </form>
                         <span class="game-played"><?= $played ?>×</span>
                         <form method="post" class="game-delete"
@@ -309,7 +324,7 @@ page_head('Crown Admin');
                     </div>
                 <?php endforeach ?>
             </div>
-            <p class="since game-note">The first box is the game's icon: an emoji, or leave it empty for none. Renaming a game also renames it in the history. × is how many recorded matches it has.</p>
+            <p class="since game-note">The first box is the game's icon: an emoji, or leave it empty for none. Players is the minimum and maximum who can play; leave either empty if not known. Renaming a game also renames it in the history. × is how many recorded matches it has.</p>
             <a href="admin.php" class="show-all">← Back to admin</a>
             <script>
                 document.querySelectorAll('.game-delete').forEach(form => {

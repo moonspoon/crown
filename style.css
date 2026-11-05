@@ -209,6 +209,9 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .toggle input:focus-visible + .switch { outline: 2px solid var(--text); outline-offset: 2px; }
 
 .game-add, .game-rename { display: flex; gap: 8px; flex: 1; min-width: 0; }
+.game-rename { flex-wrap: wrap; }
+.game-players { flex-basis: 100%; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .85rem; }
+.game-rename .game-players input { flex: none; width: 4.2rem; padding: 4px 6px; font-size: .9rem; }
 .game-add input, .game-rename input {
     flex: 1;
     min-width: 0;
