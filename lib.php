@@ -412,6 +412,15 @@ function game_label(string $game): string
     return $icon ? "$icon $game" : $game;
 }
 
+/** HTML for a person's icon and name, linking to their player page (keeping the pre-pandemic switch if it's on). */
+function player_link(string $id): string
+{
+    $query = ['id' => $id] + (include_pre_pandemic() ? ['pre' => 1] : []);
+    $icon = people()[$id]['icon'] ?? '';
+    return '<a class="person-link" href="player.php?' . e(http_build_query($query)) . '">'
+        . e(trim($icon . ' ' . person_name($id))) . '</a>';
+}
+
 /** HTML for the game's label, linking to its game page (keeping the pre-pandemic switch if it's on). */
 function game_link(string $game): string
 {

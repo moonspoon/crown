@@ -170,7 +170,7 @@ page_head('Crown Stats');
                 <?php foreach ($heldFor as $id => $secs): ?>
                     <div class="legend-row" data-tip="<?= e(person_name($id) . ': ' . days($secs)) ?>">
                         <span class="swatch" style="background: <?= $personColour[$id] ?>"></span>
-                        <span class="who"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                        <span class="who"><?= player_link($id) ?></span>
                         <span class="value"><?= e(days($secs)) ?> · <?= $totalHeld ? round(100 * $secs / $totalHeld) : 0 ?>%</span>
                     </div>
                 <?php endforeach ?>
@@ -187,7 +187,7 @@ page_head('Crown Stats');
                     . " ($taken taking the crown, {$w['kept']} keeping it), won $rate% of matches played";
                 ?>
                 <div class="bar-row" data-tip="<?= e($tip) ?>">
-                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-label"><?= player_link($id) ?></span>
                     <span class="bar-track">
                         <?php if ($w['total']): ?><span class="bar" style="width: <?= round(100 * $w['total'] / $maxWins, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
                     </span>
@@ -206,7 +206,7 @@ page_head('Crown Stats');
                         . ($reign['ongoing'] ? ' to now (still holding)' : ' to ' . date('j M Y', $reign['to']));
                 ?>
                 <div class="bar-row" data-tip="<?= e($tip) ?>">
-                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-label"><?= player_link($id) ?></span>
                     <span class="bar-track">
                         <?php if ($reign): ?><span class="bar" style="width: <?= round(100 * $reign['length'] / $maxReign, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
                     </span>
@@ -229,7 +229,7 @@ page_head('Crown Stats');
                         . ($streak['ongoing'] ? ' (still going)' : '');
                 ?>
                 <div class="bar-row" data-tip="<?= e($tip) ?>">
-                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-label"><?= player_link($id) ?></span>
                     <span class="bar-track">
                         <?php if ($streak): ?><span class="bar" style="width: <?= round(100 * $streak['wins'] / $maxStreak, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
                     </span>
@@ -252,7 +252,7 @@ page_head('Crown Stats');
                 };
                 ?>
                 <div class="bar-row" data-tip="<?= e(person_name($id) . ': ' . ($id === $holderId ? 'holds the crown now' : ($d === null ? 'has never held the crown' : days($d * 86400) . ' since they last had it'))) ?>">
-                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-label"><?= player_link($id) ?></span>
                     <span class="bar-track">
                         <?php if ($d): ?><span class="bar" style="width: <?= round(100 * $d / $maxDaysSince, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
                     </span>
@@ -292,7 +292,7 @@ page_head('Crown Stats');
         <div class="legend top-wins">
             <?php foreach ($topWins as $id => $top): ?>
                 <div class="legend-row">
-                    <span class="who"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="who"><?= player_link($id) ?></span>
                     <?php if ($top['games']): ?>
                         <span class="top-game">
                             <?= implode(', ', array_map('game_link', $top['games'])) ?>
@@ -310,7 +310,7 @@ page_head('Crown Stats');
             <?php foreach ($attended as $id => $count): ?>
                 <?php $share = round(100 * $count / count($changes)) ?>
                 <div class="bar-row" data-tip="<?= e(person_name($id) . ': played ' . $count . ' of ' . count($changes) . ' matches (' . $share . '%)') ?>">
-                    <span class="bar-label"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                    <span class="bar-label"><?= player_link($id) ?></span>
                     <span class="bar-track">
                         <?php if ($count): ?><span class="bar" style="width: <?= $share ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
                     </span>
