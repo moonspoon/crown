@@ -325,7 +325,7 @@ page_head('Crown Stats');
         <div class="bars" aria-label="Number of crown matches per game">
             <?php foreach ($gameRows as [$game, $count, $unknown]): ?>
                 <div class="bar-row<?= $unknown ? ' unknown' : '' ?>" data-tip="<?= e($game . ': ' . $count . ($count === 1 ? ' match' : ' matches')) ?>">
-                    <span class="bar-label"><?= e($game) ?></span>
+                    <span class="bar-label"><?= e(game_label($game)) ?></span>
                     <span class="bar-track"><span class="bar" style="width: <?= round(100 * $count / $maxGame, 1) ?>%"></span></span>
                     <span class="bar-value"><?= $count ?></span>
                 </div>
@@ -338,7 +338,7 @@ page_head('Crown Stats');
                 <?php foreach ($gameLastPlayed as $game => $at): ?>
                     <?php $d = (int) floor(($now - $at) / 86400) ?>
                     <div class="bar-row" data-tip="<?= e($game . ': last played ' . date('j M Y', $at) . ($d ? ' (' . days($d * 86400) . ' ago)' : ' (today)')) ?>">
-                        <span class="bar-label"><?= e($game) ?></span>
+                        <span class="bar-label"><?= e(game_label($game)) ?></span>
                         <span class="bar-track">
                             <?php if ($d): ?><span class="bar" style="width: <?= round(100 * $d / $maxGameDaysSince, 1) ?>%"></span><?php endif ?>
                         </span>
@@ -355,7 +355,7 @@ page_head('Crown Stats');
                     <span class="who"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
                     <?php if ($top['games']): ?>
                         <span class="top-game">
-                            <?= e(implode(', ', $top['games'])) ?>
+                            <?= e(implode(', ', array_map('game_label', $top['games']))) ?>
                             <span class="value">· <?= $top['wins'] ?> <?= $top['wins'] === 1 ? 'win' : 'wins' ?></span>
                         </span>
                     <?php else: ?>

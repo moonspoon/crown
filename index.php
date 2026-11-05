@@ -24,7 +24,7 @@ page_head('The Crown');
             <?php if ($lastWin): ?>
                 <p class="won">
                     <?php if (!empty($lastWin['game'])): ?>
-                        Won at <strong><?= e($lastWin['game']) ?></strong>
+                        Won at <strong><?= e(game_label($lastWin['game'])) ?></strong>
                         <?php if (!empty($lastWin['players'])): ?><br>against<?php endif ?>
                     <?php else: ?>
                         Won against
@@ -51,7 +51,7 @@ page_head('The Crown');
     <?php if ($next): ?>
         <p class="won next-match">
             Next match <strong><time datetime="<?= e($next['at']) ?>"><?= e($next['at']) ?></time></strong>
-            <?php if ($next['game']): ?><br>playing <strong><?= e($next['game']) ?></strong><?php endif ?>
+            <?php if ($next['game']): ?><br>playing <strong><?= e(game_label($next['game'])) ?></strong><?php endif ?>
             <?php if ($next['players']): ?><br>with <?= e(implode(', ', array_map('person_name', $next['players']))) ?><?php endif ?>
             <br>📍 <?= e($next['location']) ?>
         </p>

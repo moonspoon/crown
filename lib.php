@@ -3,6 +3,7 @@
 const DATA_FILE = __DIR__ . '/data/holder.json';
 const LOG_FILE = __DIR__ . '/data/history.log';
 const GAMES_FILE = __DIR__ . '/data/games.json';
+const GAME_ICONS_FILE = __DIR__ . '/data/game_icons.json';
 const ICONS_FILE = __DIR__ . '/data/icons.json';
 const COLOURS_FILE = __DIR__ . '/data/colours.json';
 // Avatars without a chosen colour use the panel colour (--panel in style.css).
@@ -312,7 +313,46 @@ function rename_game(string $old, string $new): string
     }
     unset($match);
     save_future_matches($future);
+    $icons = game_icons();
+    if (isset($icons[$old]) && $new !== $old) {
+        $icons[$new] = $icons[$old];
+        unset($icons[$old]);
+        save_game_icons($icons);
+    }
     return $new;
+}
+
+/** @return array<string, string> icons chosen for games on the admin page, by game name */
+function game_icons(): array
+{
+    return is_file(GAME_ICONS_FILE) ? (json_decode((string) file_get_contents(GAME_ICONS_FILE), true) ?: []) : [];
+}
+
+function save_game_icons(array $icons): void
+{
+    if (!is_dir(dirname(GAME_ICONS_FILE))) {
+        mkdir(dirname(GAME_ICONS_FILE), 0775, true);
+    }
+    file_put_contents(GAME_ICONS_FILE, json_encode($icons, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+}
+
+/** Sets a game's icon; an empty icon removes it. */
+function set_game_icon(string $game, string $icon): void
+{
+    $icons = game_icons();
+    if (trim($icon) === '') {
+        unset($icons[$game]);
+    } else {
+        $icons[$game] = clean_icon($icon);
+    }
+    save_game_icons($icons);
+}
+
+/** The game's name with its icon in front, if it has one. */
+function game_label(string $game): string
+{
+    $icon = game_icons()[$game] ?? null;
+    return $icon ? "$icon $game" : $game;
 }
 
 /** Removes the game from the list; past history entries keep their game name. */
@@ -661,7 +701,7 @@ function history_list(array $history, ?string $deleteToken = null): void
                     <span><?= e(person_name($h['from'])) ?> → <strong><?= e(person_name($h['to'])) ?></strong></span>
                     <?php if (!empty($h['game']) || !empty($h['players'])): ?>
                         <small>
-                            Won<?= empty($h['game']) ? '' : ' at ' . e($h['game']) ?>
+                            Won<?= empty($h['game']) ? '' : ' at ' . e(game_label($h['game'])) ?>
                             <?php if (!empty($h['players'])): ?>
                                 against <?= e(implode(', ', array_map('person_name', $h['players']))) ?>
                             <?php endif ?>
@@ -718,7 +758,7 @@ function future_list(array $matches, ?string $deleteToken = null): void
         <?php foreach ($matches as $m): ?>
             <li>
                 <div>
-                    <span><?= $m['game'] ? '<strong>' . e($m['game']) . '</strong>' : 'Game not decided yet' ?></span>
+                    <span><?= $m['game'] ? '<strong>' . e(game_label($m['game'])) . '</strong>' : 'Game not decided yet' ?></span>
                     <?php if ($m['players']): ?>
                         <small>Playing: <?= e(implode(', ', array_map('person_name', $m['players']))) ?></small>
                     <?php endif ?>

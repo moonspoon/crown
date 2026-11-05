@@ -79,8 +79,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (!empty($_SESSION['admin']) && isset($_POST['rename_from'], $_POST['rename_to'])) {
         $from = (string) $_POST['rename_from'];
         try {
+            // Check the icon first, so a bad one doesn't leave the game renamed without it.
+            $icon = trim((string) ($_POST['game_icon'] ?? ''));
+            if ($icon !== '') {
+                clean_icon($icon);
+            }
+            $iconChanged = isset($_POST['game_icon']) && $icon !== (game_icons()[$from] ?? '');
             $to = rename_game($from, (string) $_POST['rename_to']);
-            $message = $to === $from ? 'No change.' : "$from renamed to $to.";
+            if (isset($_POST['game_icon'])) {
+                set_game_icon($to, $icon);
+            }
+            $message = match (true) {
+                $to !== $from => "$from renamed to $to.",
+                $iconChanged => $icon === '' ? "$to's icon removed." : "$to's icon is now $icon.",
+                default => 'No change.',
+            };
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
@@ -281,6 +294,8 @@ page_head('Crown Admin');
                         <form method="post" class="game-rename">
                             <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
                             <input type="hidden" name="rename_from" value="<?= e($game) ?>">
+                            <input name="game_icon" class="game-icon" value="<?= e(game_icons()[$game] ?? '') ?>" placeholder="🎲"
+                                   aria-label="Icon for <?= e($game) ?>">
                             <input name="rename_to" value="<?= e($game) ?>" maxlength="60" required aria-label="Name for <?= e($game) ?>">
                             <button type="submit">Save</button>
                         </form>
@@ -294,7 +309,7 @@ page_head('Crown Admin');
                     </div>
                 <?php endforeach ?>
             </div>
-            <p class="since game-note">Renaming a game also renames it in the history. × is how many recorded matches it has.</p>
+            <p class="since game-note">The first box is the game's icon: an emoji, or leave it empty for none. Renaming a game also renames it in the history. × is how many recorded matches it has.</p>
             <a href="admin.php" class="show-all">← Back to admin</a>
             <script>
                 document.querySelectorAll('.game-delete').forEach(form => {
@@ -360,7 +375,7 @@ page_head('Crown Admin');
                             <label>
                                 <input type="radio" name="game" value="<?= e($game) ?>"
                                     <?= $game === $chosenGame ? 'checked' : '' ?>>
-                                <span><?= e($game) ?></span>
+                                <span><?= e(game_label($game)) ?></span>
                             </label>
                         <?php endforeach ?>
                     </div>
@@ -428,7 +443,7 @@ page_head('Crown Admin');
                             <label>
                                 <input type="radio" name="game" value="<?= e($game) ?>" required
                                     <?= $game === $chosenGame ? 'checked' : '' ?>>
-                                <span><?= e($game) ?></span>
+                                <span><?= e(game_label($game)) ?></span>
                             </label>
                         <?php endforeach ?>
                     </div>
