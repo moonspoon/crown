@@ -142,11 +142,12 @@ foreach ($heldFor as $id => $_) {
     $topWins[$id] = ['games' => $games, 'wins' => $best];
 }
 
-// Fixed colour per person, in config order, so a colour always means the same person.
+// Each person's avatar colour from Player details, so a colour always means the same person.
+// Anyone without one falls back to a fixed colour in config order.
 $colours = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'];
 $personColour = [];
 foreach (array_keys(people()) as $n => $id) {
-    $personColour[$id] = $colours[$n % count($colours)];
+    $personColour[$id] = people()[$id]['colour'] ?? $colours[$n % count($colours)];
 }
 
 // Matches per location, most used first. Each location keeps a colour in config order,
@@ -351,7 +352,6 @@ page_head('Crown Stats');
         <div class="legend top-wins">
             <?php foreach ($topWins as $id => $top): ?>
                 <div class="legend-row">
-                    <span class="swatch" style="background: <?= $personColour[$id] ?>"></span>
                     <span class="who"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
                     <?php if ($top['games']): ?>
                         <span class="top-game">
