@@ -1,15 +1,11 @@
 <?php
 require __DIR__ . '/lib.php';
 
-// Matches restarted after the pandemic on this date; earlier ones are only counted when asked for.
-const PANDEMIC_RESTART = '2021-07-08';
-$includePrePandemic = isset($_GET['pre']);
-
 // Oldest first, so each change lasts until the next one (the last until now).
 $changes = array_reverse(history(null));
-$hasPrePandemic = $changes && substr($changes[0]['at'], 0, 10) < PANDEMIC_RESTART;
-if (!$includePrePandemic) {
-    $changes = array_values(array_filter($changes, fn($c) => substr($c['at'], 0, 10) >= PANDEMIC_RESTART));
+$hasPrePandemic = $changes && is_pre_pandemic($changes[0]);
+if (!include_pre_pandemic()) {
+    $changes = array_values(array_filter($changes, fn($c) => !is_pre_pandemic($c)));
 }
 $now = time();
 
@@ -142,78 +138,22 @@ foreach ($heldFor as $id => $_) {
     $topWins[$id] = ['games' => $games, 'wins' => $best];
 }
 
-// Each person's avatar colour from Player details, so a colour always means the same person.
-// Anyone without one falls back to a fixed colour in config order.
-$colours = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'];
-$personColour = [];
-foreach (array_keys(people()) as $n => $id) {
-    $personColour[$id] = people()[$id]['colour'] ?? $colours[$n % count($colours)];
-}
+$personColour = person_colours();
 
-// Matches per location, most used first. Each location keeps a colour in config order,
-// from hues the people don't use (violet, then gold).
+// Matches per location, most used first.
 $byLocation = array_fill_keys(locations(), 0);
 foreach ($changes as $c) {
     $place = entry_location($c);
     $byLocation[$place] = ($byLocation[$place] ?? 0) + 1;
 }
-$locationHues = ['#9085e9', '#f5c542', '#e66767', '#a99fc9'];
-$locationColour = [];
-foreach (array_keys($byLocation) as $n => $place) {
-    $locationColour[$place] = $locationHues[$n % count($locationHues)];
-}
+$locationColour = location_colours(array_keys($byLocation));
 arsort($byLocation);
-
-function days(int $seconds): string
-{
-    $d = (int) round($seconds / 86400);
-    return $d === 1 ? '1 day' : number_format($d) . ' days';
-}
-
-/**
- * A donut built from stroked circles: each slice is a dash, offset to start where the last ended.
- * @param array<array{value: int|float, colour: string, tip: string}> $slices
- */
-function donut(array $slices, string $label): void
-{
-    $total = array_sum(array_column($slices, 'value'));
-    $r = 70;
-    $circumference = 2 * M_PI * $r;
-    $gap = 2;
-    $offset = 0;
-    ?>
-    <svg class="donut" viewBox="0 0 200 200" role="img" aria-label="<?= e($label) ?>">
-        <g transform="rotate(-90 100 100)">
-            <?php foreach ($slices as $slice): ?>
-                <?php if (!$slice['value']) continue ?>
-                <?php $len = $circumference * $slice['value'] / $total ?>
-                <circle cx="100" cy="100" r="<?= $r ?>" fill="none"
-                        stroke="<?= e($slice['colour']) ?>" stroke-width="36"
-                        stroke-dasharray="<?= max(0.5, $len - $gap) ?> <?= $circumference ?>"
-                        stroke-dashoffset="<?= -$offset ?>"
-                        data-tip="<?= e($slice['tip']) ?>"></circle>
-                <?php $offset += $len ?>
-            <?php endforeach ?>
-        </g>
-    </svg>
-    <?php
-}
 
 page_head('Crown Stats');
 ?>
 <main class="stage stats">
     <h1>Crown stats</h1>
-    <?php if ($hasPrePandemic): ?>
-        <form method="get" class="toggle">
-            <label>
-                <input type="checkbox" name="pre" value="1" <?= $includePrePandemic ? 'checked' : '' ?>
-                       onchange="this.form.submit()">
-                <span class="switch" aria-hidden="true"></span>
-                Include pre-pandemic matches
-            </label>
-            <noscript><button type="submit">Update</button></noscript>
-        </form>
-    <?php endif ?>
+    <?php if ($hasPrePandemic) pre_pandemic_toggle() ?>
     <?php if (!$changes): ?>
         <p class="since">No matches recorded yet.</p>
     <?php else: ?>
@@ -325,7 +265,7 @@ page_head('Crown Stats');
         <div class="bars" aria-label="Number of crown matches per game">
             <?php foreach ($gameRows as [$game, $count, $unknown]): ?>
                 <div class="bar-row<?= $unknown ? ' unknown' : '' ?>" data-tip="<?= e($game . ': ' . $count . ($count === 1 ? ' match' : ' matches')) ?>">
-                    <span class="bar-label"><?= e(game_label($game)) ?></span>
+                    <span class="bar-label"><?= $unknown ? e($game) : game_link($game) ?></span>
                     <span class="bar-track"><span class="bar" style="width: <?= round(100 * $count / $maxGame, 1) ?>%"></span></span>
                     <span class="bar-value"><?= $count ?></span>
                 </div>
@@ -338,7 +278,7 @@ page_head('Crown Stats');
                 <?php foreach ($gameLastPlayed as $game => $at): ?>
                     <?php $d = (int) floor(($now - $at) / 86400) ?>
                     <div class="bar-row" data-tip="<?= e($game . ': last played ' . date('j M Y', $at) . ($d ? ' (' . days($d * 86400) . ' ago)' : ' (today)')) ?>">
-                        <span class="bar-label"><?= e(game_label($game)) ?></span>
+                        <span class="bar-label"><?= game_link($game) ?></span>
                         <span class="bar-track">
                             <?php if ($d): ?><span class="bar" style="width: <?= round(100 * $d / $maxGameDaysSince, 1) ?>%"></span><?php endif ?>
                         </span>
@@ -355,7 +295,7 @@ page_head('Crown Stats');
                     <span class="who"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
                     <?php if ($top['games']): ?>
                         <span class="top-game">
-                            <?= e(implode(', ', array_map('game_label', $top['games']))) ?>
+                            <?= implode(', ', array_map('game_link', $top['games'])) ?>
                             <span class="value">· <?= $top['wins'] ?> <?= $top['wins'] === 1 ? 'win' : 'wins' ?></span>
                         </span>
                     <?php else: ?>
@@ -422,19 +362,7 @@ page_head('Crown Stats');
         </div>
     <?php endif ?>
 </main>
-<div class="tooltip" id="tooltip" hidden></div>
 <a class="admin-link" href="./">← Back to the crown</a>
-<script>
-const tooltip = document.getElementById('tooltip');
-document.querySelectorAll('[data-tip]').forEach(el => {
-    el.addEventListener('pointermove', ev => {
-        tooltip.textContent = el.dataset.tip;
-        tooltip.hidden = false;
-        tooltip.style.left = ev.clientX + 'px';
-        tooltip.style.top = ev.clientY + 'px';
-    });
-    el.addEventListener('pointerleave', () => { tooltip.hidden = true; });
-});
-</script>
+<?php chart_tooltip() ?>
 </body>
 </html>

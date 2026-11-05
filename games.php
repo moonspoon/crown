@@ -1,26 +1,27 @@
 <?php
 require __DIR__ . '/lib.php';
 
-$counts = game_counts();
-$ranges = game_players();
-
-/** "2–5 players", "2+ players" or "Up to 5 players"; null when neither is set. */
-function players_text(?array $range): ?string
-{
-    $min = $range['min'] ?? null;
-    $max = $range['max'] ?? null;
-    return match (true) {
-        $min !== null && $max !== null => ($min === $max ? $min : "{$min}–{$max}") . ($max === 1 ? ' player' : ' players'),
-        $min !== null => "$min+ players",
-        $max !== null => "Up to $max " . ($max === 1 ? 'player' : 'players'),
-        default => null,
-    };
+// Times each game was played, leaving out pre-pandemic matches unless switched on.
+$entries = log_entries();
+$hasPrePandemic = (bool) array_filter($entries, 'is_pre_pandemic');
+$counts = [];
+$everPlayed = [];
+foreach ($entries as $entry) {
+    if (empty($entry['game'])) {
+        continue;
+    }
+    $everPlayed[$entry['game']] = true;
+    if (include_pre_pandemic() || !is_pre_pandemic($entry)) {
+        $counts[$entry['game']] = ($counts[$entry['game']] ?? 0) + 1;
+    }
 }
+$ranges = game_players();
 
 page_head('Game Details');
 ?>
 <main class="stage">
     <h1>Game details</h1>
+    <?php if ($hasPrePandemic) pre_pandemic_toggle() ?>
     <?php if (!games()): ?>
         <p class="since">No games yet.</p>
     <?php else: ?>
@@ -29,12 +30,12 @@ page_head('Game Details');
                 <?php $played = $counts[$game] ?? 0 ?>
                 <li>
                     <div>
-                        <span><strong><?= e(game_label($game)) ?></strong></span>
+                        <strong><?= game_link($game) ?></strong>
                         <?php if ($players = players_text($ranges[$game] ?? null)): ?>
                             <small><?= e($players) ?></small>
                         <?php endif ?>
                     </div>
-                    <span class="times-played"><?= $played ? 'Played ' . $played . ($played === 1 ? ' time' : ' times') : 'Not played yet' ?></span>
+                    <span class="times-played"><?= $played ? 'Played ' . $played . ($played === 1 ? ' time' : ' times') : (isset($everPlayed[$game]) ? 'Not played since the pandemic' : 'Not played yet') ?></span>
                 </li>
             <?php endforeach ?>
         </ol>

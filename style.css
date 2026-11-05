@@ -341,3 +341,6 @@ button.link { background: none; border: 0; color: var(--muted); font: inherit; t
     text-decoration: none;
 }
 .times-played { color: var(--muted); white-space: nowrap; }
+/* Game names link to their game page, in the colour of the text around them. */
+.game-link { color: inherit; text-decoration: none; }
+.game-link:hover { text-decoration: underline; }

@@ -412,6 +412,13 @@ function game_label(string $game): string
     return $icon ? "$icon $game" : $game;
 }
 
+/** HTML for the game's label, linking to its game page (keeping the pre-pandemic switch if it's on). */
+function game_link(string $game): string
+{
+    $query = ['name' => $game] + (include_pre_pandemic() ? ['pre' => 1] : []);
+    return '<a class="game-link" href="game.php?' . e(http_build_query($query)) . '">' . e(game_label($game)) . '</a>';
+}
+
 /** Removes the game from the list; past history entries keep their game name. */
 function delete_game(string $name): void
 {
@@ -758,7 +765,7 @@ function history_list(array $history, ?string $deleteToken = null): void
                     <span><?= e(person_name($h['from'])) ?> → <strong><?= e(person_name($h['to'])) ?></strong></span>
                     <?php if (!empty($h['game']) || !empty($h['players'])): ?>
                         <small>
-                            Won<?= empty($h['game']) ? '' : ' at ' . e(game_label($h['game'])) ?>
+                            Won<?= empty($h['game']) ? '' : ' at ' . game_link($h['game']) ?>
                             <?php if (!empty($h['players'])): ?>
                                 against <?= e(implode(', ', array_map('person_name', $h['players']))) ?>
                             <?php endif ?>
@@ -815,7 +822,7 @@ function future_list(array $matches, ?string $deleteToken = null): void
         <?php foreach ($matches as $m): ?>
             <li>
                 <div>
-                    <span><?= $m['game'] ? '<strong>' . e(game_label($m['game'])) . '</strong>' : 'Game not decided yet' ?></span>
+                    <span><?= $m['game'] ? '<strong>' . game_link($m['game']) . '</strong>' : 'Game not decided yet' ?></span>
                     <?php if ($m['players']): ?>
                         <small>Playing: <?= e(implode(', ', array_map('person_name', $m['players']))) ?></small>
                     <?php endif ?>
@@ -863,6 +870,139 @@ function person_name(?string $id): string
 function e(?string $s): string
 {
     return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+}
+
+// Matches restarted after the pandemic on this date; earlier ones are only counted when asked for.
+const PANDEMIC_RESTART = '2021-07-08';
+
+/** Whether the viewer has switched on pre-pandemic matches (?pre). */
+function include_pre_pandemic(): bool
+{
+    return isset($_GET['pre']);
+}
+
+function is_pre_pandemic(array $entry): bool
+{
+    return substr($entry['at'], 0, 10) < PANDEMIC_RESTART;
+}
+
+/** The "Include pre-pandemic matches" switch; $keep holds other query values the page needs. */
+function pre_pandemic_toggle(array $keep = []): void
+{
+    ?>
+    <form method="get" class="toggle">
+        <?php foreach ($keep as $key => $value): ?>
+            <input type="hidden" name="<?= e($key) ?>" value="<?= e($value) ?>">
+        <?php endforeach ?>
+        <label>
+            <input type="checkbox" name="pre" value="1" <?= include_pre_pandemic() ? 'checked' : '' ?>
+                   onchange="this.form.submit()">
+            <span class="switch" aria-hidden="true"></span>
+            Include pre-pandemic matches
+        </label>
+        <noscript><button type="submit">Update</button></noscript>
+    </form>
+    <?php
+}
+
+/** "2–5 players", "2+ players" or "Up to 5 players"; null when neither is set. */
+function players_text(?array $range): ?string
+{
+    $min = $range['min'] ?? null;
+    $max = $range['max'] ?? null;
+    return match (true) {
+        $min !== null && $max !== null => ($min === $max ? $min : "{$min}–{$max}") . ($max === 1 ? ' player' : ' players'),
+        $min !== null => "$min+ players",
+        $max !== null => "Up to $max " . ($max === 1 ? 'player' : 'players'),
+        default => null,
+    };
+}
+
+/**
+ * Each person's chart colour: their avatar colour from Player details, so a colour always means
+ * the same person. Anyone without one falls back to a fixed colour in config order.
+ * @return array<string, string>
+ */
+function person_colours(): array
+{
+    $fallback = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300'];
+    $people = people();
+    $colours = [];
+    foreach (array_keys($people) as $n => $id) {
+        $colours[$id] = $people[$id]['colour'] ?? $fallback[$n % count($fallback)];
+    }
+    return $colours;
+}
+
+/**
+ * A colour for each of $places, given in a fixed order (the location list first) so a place keeps
+ * its colour, from hues the people don't use (violet, then gold).
+ * @return array<string, string>
+ */
+function location_colours(array $places): array
+{
+    $hues = ['#9085e9', '#f5c542', '#e66767', '#a99fc9'];
+    $colours = [];
+    foreach (array_values($places) as $n => $place) {
+        $colours[$place] = $hues[$n % count($hues)];
+    }
+    return $colours;
+}
+
+function days(int $seconds): string
+{
+    $d = (int) round($seconds / 86400);
+    return $d === 1 ? '1 day' : number_format($d) . ' days';
+}
+
+/**
+ * A donut built from stroked circles: each slice is a dash, offset to start where the last ended.
+ * @param array<array{value: int|float, colour: string, tip: string}> $slices
+ */
+function donut(array $slices, string $label): void
+{
+    $total = array_sum(array_column($slices, 'value'));
+    $r = 70;
+    $circumference = 2 * M_PI * $r;
+    // Only gap between slices; a single slice is a whole ring.
+    $gap = count(array_filter(array_column($slices, 'value'))) > 1 ? 2 : 0;
+    $offset = 0;
+    ?>
+    <svg class="donut" viewBox="0 0 200 200" role="img" aria-label="<?= e($label) ?>">
+        <g transform="rotate(-90 100 100)">
+            <?php foreach ($slices as $slice): ?>
+                <?php if (!$slice['value']) continue ?>
+                <?php $len = $circumference * $slice['value'] / $total ?>
+                <circle cx="100" cy="100" r="<?= $r ?>" fill="none"
+                        stroke="<?= e($slice['colour']) ?>" stroke-width="36"
+                        stroke-dasharray="<?= max(0.5, $len - $gap) ?> <?= $circumference ?>"
+                        stroke-dashoffset="<?= -$offset ?>"
+                        data-tip="<?= e($slice['tip']) ?>"></circle>
+                <?php $offset += $len ?>
+            <?php endforeach ?>
+        </g>
+    </svg>
+    <?php
+}
+
+/** The hover tooltip for chart parts with a data-tip; call once, after the charts. */
+function chart_tooltip(): void
+{
+    ?>
+    <div class="tooltip" id="tooltip" hidden></div>
+    <script>
+    const tooltip = document.getElementById('tooltip');
+    document.querySelectorAll('[data-tip]').forEach(el => {
+        el.addEventListener('pointermove', ev => {
+            tooltip.textContent = el.dataset.tip;
+            tooltip.hidden = false;
+            tooltip.style.left = ev.clientX + 'px';
+            tooltip.style.top = ev.clientY + 'px';
+        });
+        el.addEventListener('pointerleave', () => { tooltip.hidden = true; });
+    });
+    </script>
+    <?php
 }
 
 function page_head(string $title): void
