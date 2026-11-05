@@ -61,6 +61,7 @@ page_head('The Crown');
         <a href="history.php" class="show-all">Crown history</a>
         <a href="future.php" class="show-all">Future matches</a>
         <a href="stats.php" class="show-all">Stats</a>
+        <a href="games.php" class="show-all">Game details</a>
     </nav>
 </main>
 <a class="admin-link" href="admin.php">Admin</a>
