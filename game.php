@@ -39,6 +39,17 @@ foreach ($matches as $m) {
 arsort($wins);
 $personColour = person_colours();
 
+// Who picked this game, most first: the holder going into a match chooses what's played.
+$picks = array_fill_keys(array_keys(people()), 0);
+foreach ($matches as $m) {
+    if (isset($picks[$m['from']])) {
+        $picks[$m['from']]++;
+    }
+}
+$picks = array_filter($picks);
+arsort($picks);
+$totalPicks = array_sum($picks);
+
 // Matches per location, most used first.
 $byLocation = array_fill_keys(locations(), 0);
 foreach ($matches as $m) {
@@ -103,6 +114,26 @@ page_head(game_label($name));
                 <?php endforeach ?>
             </div>
         </div>
+
+        <?php if ($picks): ?>
+            <h2 class="label stats-title">Picked by</h2>
+            <div class="donut-wrap">
+                <?php donut(array_map(fn($id, $n) => [
+                    'value' => $n,
+                    'colour' => $personColour[$id],
+                    'tip' => person_name($id) . ': ' . $plural($n, 'pick', 'picks') . ' (' . round(100 * $n / $totalPicks) . '%)',
+                ], array_keys($picks), $picks), 'Share of ' . $name . ' matches each person picked') ?>
+                <div class="legend">
+                    <?php foreach ($picks as $id => $n): ?>
+                        <div class="legend-row">
+                            <span class="swatch" style="background: <?= $personColour[$id] ?>"></span>
+                            <span class="who"><?= player_link($id) ?></span>
+                            <span class="value"><?= e($plural($n, 'pick', 'picks')) ?> · <?= round(100 * $n / $totalPicks) ?>%</span>
+                        </div>
+                    <?php endforeach ?>
+                </div>
+            </div>
+        <?php endif ?>
 
         <h2 class="label stats-title">Location</h2>
         <div class="donut-wrap">

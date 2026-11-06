@@ -82,9 +82,20 @@ $topWins = $winsByGame ? max($winsByGame) : 0;
 $topGames = array_keys(array_filter($winsByGame, fn($n) => $n === $topWins));
 sort($topGames, SORT_NATURAL | SORT_FLAG_CASE);
 
+// Games picked, most first, with picks of an unrecorded game last: the holder going into a match chooses what's played.
+$picks = array_values(array_filter($changes, fn($c) => $c['from'] === $id));
+$picksByGame = [];
+foreach ($picks as $c) {
+    if (!empty($c['game'])) {
+        $picksByGame[$c['game']] = ($picksByGame[$c['game']] ?? 0) + 1;
+    }
+}
+arsort($picksByGame);
+$unknownPicks = count($picks) - array_sum($picksByGame);
+
 // A colour per game, by its place in the games list so a game keeps its colour on every player's page.
 $hues = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767', '#f5c542', '#4fb3c9'];
-$gameNames = array_values(array_unique([...games(), ...array_keys($winsByGame)]));
+$gameNames = array_values(array_unique([...games(), ...array_keys($winsByGame), ...array_keys($picksByGame)]));
 $gameColour = [];
 foreach ($gameNames as $n => $game) {
     $gameColour[$game] = $hues[$n % count($hues)];
@@ -173,6 +184,31 @@ page_head($person['name']);
                             <span class="swatch" style="background: <?= $s['colour'] ?>"></span>
                             <span class="who"><?= $s['game'] ? game_link($s['game']) : 'Unknown' ?></span>
                             <span class="value"><?= e($plural($s['value'], 'win', 'wins')) ?> · <?= round(100 * $s['value'] / count($wins)) ?>%</span>
+                        </div>
+                    <?php endforeach ?>
+                </div>
+            </div>
+        <?php endif ?>
+
+        <?php if ($picks): ?>
+            <h2 class="label stats-title">Games picked</h2>
+            <?php
+            $pickSlices = array_map(fn($game, $n) => ['label' => game_label($game), 'game' => $game, 'value' => $n, 'colour' => $gameColour[$game]],
+                array_keys($picksByGame), $picksByGame);
+            if ($unknownPicks) {
+                $pickSlices[] = ['label' => 'Unknown', 'game' => null, 'value' => $unknownPicks, 'colour' => '#5d547f'];
+            }
+            ?>
+            <div class="donut-wrap">
+                <?php donut(array_map(fn($s) => $s + [
+                    'tip' => $s['label'] . ': ' . $plural($s['value'], 'pick', 'picks') . ' (' . round(100 * $s['value'] / count($picks)) . '%)',
+                ], $pickSlices), 'Share of ' . $person['name'] . "'s picks at each game") ?>
+                <div class="legend">
+                    <?php foreach ($pickSlices as $s): ?>
+                        <div class="legend-row">
+                            <span class="swatch" style="background: <?= $s['colour'] ?>"></span>
+                            <span class="who"><?= $s['game'] ? game_link($s['game']) : 'Unknown' ?></span>
+                            <span class="value"><?= e($plural($s['value'], 'pick', 'picks')) ?> · <?= round(100 * $s['value'] / count($picks)) ?>%</span>
                         </div>
                     <?php endforeach ?>
                 </div>
