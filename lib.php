@@ -412,11 +412,11 @@ function game_label(string $game): string
     return $icon ? "$icon $game" : $game;
 }
 
-/** HTML for a person's icon and name, linking to their player page (keeping the pre-pandemic switch if it's on). */
-function player_link(string $id): string
+/** HTML for a person's name, after their icon unless turned off, linking to their player page (keeping the pre-pandemic switch if it's on). */
+function player_link(string $id, bool $withIcon = true): string
 {
     $query = ['id' => $id] + (include_pre_pandemic() ? ['pre' => 1] : []);
-    $icon = people()[$id]['icon'] ?? '';
+    $icon = $withIcon ? (people()[$id]['icon'] ?? '') : '';
     return '<a class="person-link" href="player.php?' . e(http_build_query($query)) . '">'
         . e(trim($icon . ' ' . person_name($id))) . '</a>';
 }
@@ -771,12 +771,12 @@ function history_list(array $history, ?string $deleteToken = null): void
         <?php foreach ($history as $h): ?>
             <li>
                 <div>
-                    <span><?= e(person_name($h['from'])) ?> → <strong><?= e(person_name($h['to'])) ?></strong></span>
+                    <span><?= $h['from'] === null ? e(person_name(null)) : player_link($h['from'], false) ?> → <strong><?= player_link($h['to'], false) ?></strong></span>
                     <?php if (!empty($h['game']) || !empty($h['players'])): ?>
                         <small>
                             Won<?= empty($h['game']) ? '' : ' at ' . game_link($h['game']) ?>
                             <?php if (!empty($h['players'])): ?>
-                                against <?= e(implode(', ', array_map('person_name', $h['players']))) ?>
+                                against <?= implode(', ', array_map(fn($id) => player_link($id, false), $h['players'])) ?>
                             <?php endif ?>
                         </small>
                     <?php endif ?>
@@ -833,7 +833,7 @@ function future_list(array $matches, ?string $deleteToken = null): void
                 <div>
                     <span><?= $m['game'] ? '<strong>' . game_link($m['game']) . '</strong>' : 'Game not decided yet' ?></span>
                     <?php if ($m['players']): ?>
-                        <small>Playing: <?= e(implode(', ', array_map('person_name', $m['players']))) ?></small>
+                        <small>Playing: <?= implode(', ', array_map(fn($id) => player_link($id, false), $m['players'])) ?></small>
                     <?php endif ?>
                     <small class="where">📍 <?= e($m['location']) ?></small>
                 </div>

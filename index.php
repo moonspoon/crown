@@ -31,7 +31,7 @@ page_head('The Crown');
                     <?php else: ?>
                         Won against
                     <?php endif ?>
-                    <?= e(implode(', ', array_map('person_name', $lastWin['players'] ?? []))) ?>
+                    <?= implode(', ', array_map(fn($id) => player_link($id, false), $lastWin['players'] ?? [])) ?>
                     <br>📍 <?= e(entry_location($lastWin)) ?>
                 </p>
             <?php endif ?>
@@ -56,7 +56,7 @@ page_head('The Crown');
         <p class="won next-match">
             Next match <strong><time datetime="<?= e($next['at']) ?>"><?= e($next['at']) ?></time></strong>
             <?php if ($next['game']): ?><br>playing <strong><?= game_link($next['game']) ?></strong><?php endif ?>
-            <?php if ($next['players']): ?><br>with <?= e(implode(', ', array_map('person_name', $next['players']))) ?><?php endif ?>
+            <?php if ($next['players']): ?><br>with <?= implode(', ', array_map(fn($id) => player_link($id, false), $next['players'])) ?><?php endif ?>
             <br>📍 <?= e($next['location']) ?>
         </p>
     <?php endif ?>
