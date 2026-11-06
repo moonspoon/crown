@@ -97,7 +97,7 @@ page_head(game_label($name));
                 <?php foreach ($wins as $id => $n): ?>
                     <div class="legend-row">
                         <span class="swatch" style="background: <?= $personColour[$id] ?>"></span>
-                        <span class="who"><?= e(people()[$id]['icon']) ?> <?= e(person_name($id)) ?></span>
+                        <span class="who"><?= player_link($id) ?></span>
                         <span class="value"><?= e($plural($n, 'win', 'wins')) ?> · <?= round(100 * $n / $total) ?>%</span>
                     </div>
                 <?php endforeach ?>
