@@ -112,6 +112,13 @@ foreach ($attended as $c) {
 }
 arsort($playedByGame);
 $maxPlayed = $playedByGame ? max($playedByGame) : 1;
+
+// Share of their matches at each game that this person won, best first; ties go to the game played most.
+$winRates = [];
+foreach ($playedByGame as $game => $n) {
+    $winRates[$game] = 100 * ($winsByGame[$game] ?? 0) / $n;
+}
+uksort($winRates, fn($a, $b) => [$winRates[$b], $playedByGame[$b]] <=> [$winRates[$a], $playedByGame[$a]]);
 asort($lastPlayed);
 $maxSincePlayed = $lastPlayed ? max(1, (int) floor(($now - reset($lastPlayed)) / 86400)) : 1;
 
@@ -187,6 +194,21 @@ page_head($person['name']);
                         </div>
                     <?php endforeach ?>
                 </div>
+            </div>
+        <?php endif ?>
+
+        <?php if ($winRates): ?>
+            <h2 class="label stats-title">Win %</h2>
+            <div class="bars" aria-label="Share of matches at each game that <?= e($person['name']) ?> won">
+                <?php foreach ($winRates as $game => $rate): ?>
+                    <div class="bar-row" data-tip="<?= e(game_label($game) . ': won ' . ($winsByGame[$game] ?? 0) . ' of ' . $plural($playedByGame[$game], 'match', 'matches') . ' played (' . round($rate) . '%)') ?>">
+                        <span class="bar-label"><?= game_link($game) ?></span>
+                        <span class="bar-track">
+                            <?php if ($rate): ?><span class="bar" style="width: <?= round($rate, 1) ?>%; background: <?= $gameColour[$game] ?? 'var(--gold)' ?>"></span><?php endif ?>
+                        </span>
+                        <span class="bar-value"><?= round($rate) ?>%</span>
+                    </div>
+                <?php endforeach ?>
             </div>
         <?php endif ?>
 
