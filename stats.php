@@ -122,6 +122,13 @@ foreach ($changes as $c) {
 uasort($winTotals, fn($a, $b) => $b['total'] <=> $a['total']);
 $maxWins = max(1, ...array_values(array_column($winTotals, 'total')));
 
+// Each person's share of the matches they played that they won, best first.
+$winRates = [];
+foreach ($winTotals as $id => $w) {
+    $winRates[$id] = $attended[$id] ? 100 * $w['total'] / $attended[$id] : 0;
+}
+arsort($winRates);
+
 // Each person's most won game, with every game tied for the top spot.
 $winsByGame = array_fill_keys(array_keys(people()), []);
 foreach ($changes as $c) {
@@ -182,9 +189,8 @@ page_head('Crown Stats');
             <?php foreach ($winTotals as $id => $w): ?>
                 <?php
                 $taken = $w['total'] - $w['kept'];
-                $rate = $attended[$id] ? round(100 * $w['total'] / $attended[$id]) : 0;
                 $tip = person_name($id) . ': ' . $w['total'] . ($w['total'] === 1 ? ' win' : ' wins')
-                    . " ($taken taking the crown, {$w['kept']} keeping it), won $rate% of matches played";
+                    . " ($taken taking the crown, {$w['kept']} keeping it), won " . round($winRates[$id]) . '% of matches played';
                 ?>
                 <div class="bar-row" data-tip="<?= e($tip) ?>">
                     <span class="bar-label"><?= player_link($id) ?></span>
@@ -192,6 +198,20 @@ page_head('Crown Stats');
                         <?php if ($w['total']): ?><span class="bar" style="width: <?= round(100 * $w['total'] / $maxWins, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
                     </span>
                     <span class="bar-value"><?= $w['total'] ?></span>
+                </div>
+            <?php endforeach ?>
+        </div>
+
+        <h2 class="label stats-title">Win %</h2>
+        <div class="bars" aria-label="Share of the matches they played that each person won">
+            <?php foreach ($winRates as $id => $rate): ?>
+                <?php $won = $winTotals[$id]['total'] ?>
+                <div class="bar-row" data-tip="<?= e(person_name($id) . ': won ' . $won . ' of ' . $attended[$id] . ($attended[$id] === 1 ? ' match' : ' matches') . ' played (' . round($rate) . '%)') ?>">
+                    <span class="bar-label"><?= player_link($id) ?></span>
+                    <span class="bar-track">
+                        <?php if ($rate): ?><span class="bar" style="width: <?= round($rate, 1) ?>%; background: <?= $personColour[$id] ?>"></span><?php endif ?>
+                    </span>
+                    <span class="bar-value"><?= round($rate) ?>%</span>
                 </div>
             <?php endforeach ?>
         </div>
