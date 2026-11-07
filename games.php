@@ -1,10 +1,11 @@
 <?php
 require __DIR__ . '/lib.php';
 
-// Times each game was played, leaving out pre-pandemic matches unless switched on.
+// Times each game was played and when it was last played, leaving out pre-pandemic matches unless switched on.
 $entries = log_entries();
 $hasPrePandemic = (bool) array_filter($entries, 'is_pre_pandemic');
 $counts = [];
+$lastPlayed = [];
 $everPlayed = [];
 foreach ($entries as $entry) {
     if (empty($entry['game'])) {
@@ -13,6 +14,7 @@ foreach ($entries as $entry) {
     $everPlayed[$entry['game']] = true;
     if (include_pre_pandemic() || !is_pre_pandemic($entry)) {
         $counts[$entry['game']] = ($counts[$entry['game']] ?? 0) + 1;
+        $lastPlayed[$entry['game']] = max($lastPlayed[$entry['game']] ?? 0, strtotime($entry['at']));
     }
 }
 $ranges = game_players();
@@ -58,6 +60,9 @@ page_head('Game Details');
                         <strong><?= game_link($game) ?></strong>
                         <?php if ($players = players_text($ranges[$game] ?? null)): ?>
                             <small><?= e($players) ?></small>
+                        <?php endif ?>
+                        <?php if (isset($lastPlayed[$game])): ?>
+                            <small>Last played <?= e(date('j M Y', $lastPlayed[$game])) ?></small>
                         <?php endif ?>
                     </div>
                     <span class="times-played"><?= $played ? 'Played ' . $played . ($played === 1 ? ' time' : ' times') : (isset($everPlayed[$game]) ? 'Not played since the pandemic' : 'Not played yet') ?></span>
