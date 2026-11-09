@@ -24,6 +24,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
+    } elseif (isset($_POST['next_at'], $_POST['next_game'])) {
+        // Only whoever holds the crown now picks the next match's game, and only for the match still shown as next.
+        $next = future_matches()[0] ?? null;
+        if (current_holder()['id'] !== $id) {
+            $error = 'Only the crown holder can pick the next game.';
+        } elseif (!$next || $next['at'] !== $_POST['next_at']) {
+            $error = 'The next match has changed, please pick again.';
+        } else {
+            try {
+                set_future_game($next['at'], (string) $_POST['next_game']);
+                $message = $_POST['next_game'] === '' ? 'Next game cleared.' : 'Next match: ' . $_POST['next_game'] . '.';
+            } catch (InvalidArgumentException $ex) {
+                $error = $ex->getMessage();
+            }
+        }
     } elseif (isset($_POST['current_password'], $_POST['new_password'])) {
         if (!check_login($id, (string) $_POST['current_password'])) {
             $error = 'Your current password is wrong.';
@@ -39,12 +54,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $person = people()[$id];
+$isHolder = current_holder()['id'] === $id;
+$next = future_matches()[0] ?? null;
 page_head('My Avatar');
 ?>
 <main class="stage admin">
+    <?php if ($isHolder): ?><div class="crown">👑</div><?php endif ?>
     <h1>Hi <?= e($person['name']) ?></h1>
     <?php if ($error): ?><p class="flash error"><?= e($error) ?></p><?php endif ?>
     <?php if ($message): ?><p class="flash ok"><?= e($message) ?></p><?php endif ?>
+
+    <?php if ($isHolder && $next): ?>
+        <h2 class="label stats-title">Pick the next game</h2>
+        <p class="since">
+            You hold the crown, so you choose what's played on
+            <strong><time datetime="<?= e($next['at']) ?>"><?= e(date('D j M, H:i', strtotime($next['at']))) ?></time></strong>
+            at <?= e($next['location']) ?>.
+        </p>
+        <form method="post" class="next-game">
+            <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+            <input type="hidden" name="next_at" value="<?= e($next['at']) ?>">
+            <div class="chips">
+                <label>
+                    <input type="radio" name="next_game" value="" <?= $next['game'] === null ? 'checked' : '' ?>>
+                    <span>Not decided</span>
+                </label>
+                <?php foreach (games() as $game): ?>
+                    <label>
+                        <input type="radio" name="next_game" value="<?= e($game) ?>" <?= $game === $next['game'] ? 'checked' : '' ?>>
+                        <span><?= e(game_label($game)) ?></span>
+                    </label>
+                <?php endforeach ?>
+            </div>
+            <button type="submit" class="primary">Save game</button>
+        </form>
+    <?php endif ?>
 
     <h2 class="label stats-title">Your avatar</h2>
     <form method="post" class="icon-row">

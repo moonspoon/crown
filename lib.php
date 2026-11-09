@@ -735,6 +735,21 @@ function update_future_match(string $oldAt, DateTimeInterface $at, string $game,
     save_future_matches($matches);
 }
 
+/** Sets just the game of the future match arranged for $at; an empty game means not decided. */
+function set_future_game(string $at, string $game): void
+{
+    if ($game !== '' && !in_array($game, games(), true)) {
+        throw new InvalidArgumentException('Pick which game will be played.');
+    }
+    $matches = future_matches();
+    $index = array_search($at, array_column($matches, 'at'), true);
+    if ($index === false) {
+        throw new InvalidArgumentException('That match is no longer arranged.');
+    }
+    $matches[$index]['game'] = $game === '' ? null : $game;
+    save_future_matches($matches);
+}
+
 /** @return ?array the future match arranged for $at */
 function find_future_match(string $at): ?array
 {
