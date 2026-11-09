@@ -10,6 +10,9 @@ const COLOURS_FILE = __DIR__ . '/data/colours.json';
 // Avatars without a chosen colour use the panel colour (--panel in style.css).
 const DEFAULT_AVATAR_COLOUR = '#2a2246';
 const LOCATIONS_FILE = __DIR__ . '/data/locations.json';
+// Hashed login passwords for everyone but the superuser, whose password is admin_password in config.php.
+const PASSWORDS_FILE = __DIR__ . '/data/passwords.json';
+const MIN_PASSWORD_LENGTH = 6;
 // Matches arranged for a later date. Kept apart from the history, so they never touch the holder or the stats.
 const FUTURE_FILE = __DIR__ . '/data/future.json';
 
@@ -101,6 +104,82 @@ function clean_icon(string $icon): string
         throw new InvalidArgumentException('Icons should be a single emoji or a couple of letters.');
     }
     return $icon;
+}
+
+/** Starts the login session shared by the login, account and admin pages, with a CSRF token. */
+function start_login_session(): void
+{
+    session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict', 'lifetime' => 60 * 60 * 24 * 30]);
+    session_start();
+    $_SESSION['csrf'] ??= bin2hex(random_bytes(16));
+}
+
+/** Id of the person whose login opens the admin area. */
+function superuser(): string
+{
+    return config()['superuser'] ?? array_key_first(config()['people']);
+}
+
+/** Id of the person logged in this session, or null. */
+function logged_in(): ?string
+{
+    $id = $_SESSION['user'] ?? null;
+    return is_string($id) && isset(config()['people'][$id]) ? $id : null;
+}
+
+function is_superuser(): bool
+{
+    return logged_in() === superuser();
+}
+
+/** Where a person lands after logging in. */
+function home_page(string $id): string
+{
+    return $id === superuser() ? 'admin.php' : 'account.php';
+}
+
+/** @return array<string, string> password hashes by person id */
+function password_hashes(): array
+{
+    return is_file(PASSWORDS_FILE) ? (json_decode((string) file_get_contents(PASSWORDS_FILE), true) ?: []) : [];
+}
+
+/** Whether a person can log in yet: the superuser always can, others once a password is set. */
+function has_password(string $id): bool
+{
+    return $id === superuser() || isset(password_hashes()[$id]);
+}
+
+function check_login(string $id, string $password): bool
+{
+    if (!isset(config()['people'][$id])) {
+        return false;
+    }
+    if ($id === superuser()) {
+        return hash_equals((string) config()['admin_password'], $password);
+    }
+    $hash = password_hashes()[$id] ?? null;
+    return $hash !== null && password_verify($password, $hash);
+}
+
+/** Sets a player's login password. The superuser's lives in config.php instead. */
+function set_password(string $id, string $password): void
+{
+    if (!isset(config()['people'][$id])) {
+        throw new InvalidArgumentException('Unknown person.');
+    }
+    if ($id === superuser()) {
+        throw new InvalidArgumentException('The admin password is set in config.php.');
+    }
+    if (strlen($password) < MIN_PASSWORD_LENGTH) {
+        throw new InvalidArgumentException('Passwords need at least ' . MIN_PASSWORD_LENGTH . ' characters.');
+    }
+    $hashes = password_hashes();
+    $hashes[$id] = password_hash($password, PASSWORD_DEFAULT);
+    if (!is_dir(dirname(PASSWORDS_FILE))) {
+        mkdir(dirname(PASSWORDS_FILE), 0775, true);
+    }
+    file_put_contents(PASSWORDS_FILE, json_encode($hashes, JSON_PRETTY_PRINT), LOCK_EX);
 }
 
 /** @return array{locations: string[], default: string} managed from the admin page; config.php supplies the start */

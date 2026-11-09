@@ -142,7 +142,7 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .cancel { color: var(--muted); margin-top: 8px; }
 
 .login { display: grid; gap: 12px; text-align: left; margin-top: 24px; }
-.login input, .login button {
+.login input, .login select, .login button {
     font: inherit;
     padding: 14px;
     border-radius: 12px;
@@ -256,6 +256,17 @@ button.primary:disabled { opacity: .4; cursor: not-allowed; }
 .icon-row { display: grid; grid-template-columns: auto 1fr 4.5rem 44px auto; align-items: center; gap: 10px; text-align: left; }
 .icon-row input[type="color"] { width: 44px; height: 38px; padding: 2px; cursor: pointer; }
 .icon-row .colour-reset { grid-column: 2 / -1; justify-self: start; margin-top: -6px; font-size: .8rem; }
+.password-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 10px; text-align: left; }
+.password-row input {
+    font: inherit;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #4a3f72;
+    background: var(--panel);
+    color: var(--text);
+    min-width: 0;
+}
+.password-row button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 0; background: var(--gold); color: #1b1530; font-weight: 700; cursor: pointer; }
 .icon-row .avatar { width: 44px; height: 44px; font-size: 1.5rem; }
 .icon-row input {
     width: 100%;

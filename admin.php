@@ -1,9 +1,12 @@
 <?php
 require __DIR__ . '/lib.php';
 
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict', 'lifetime' => 60 * 60 * 24 * 30]);
-session_start();
-$_SESSION['csrf'] ??= bin2hex(random_bytes(16));
+start_login_session();
+// Only the superuser gets in; everyone else is sent to log in (or to their own page).
+if (!is_superuser()) {
+    header('Location: ' . (logged_in() ? 'account.php' : 'login.php'));
+    exit;
+}
 
 $error = null;
 $message = null;
@@ -13,20 +16,15 @@ $pending = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($_SESSION['csrf'], $_POST['csrf'] ?? '')) {
         $error = 'Session expired, please try again.';
-    } elseif (isset($_POST['password'])) {
-        if (hash_equals(config()['admin_password'], (string) $_POST['password'])) {
-            session_regenerate_id(true);
-            $_SESSION['admin'] = true;
-            header('Location: admin.php');
-            exit;
+    } elseif (isset($_POST['password_for'], $_POST['new_password'])) {
+        $id = (string) $_POST['password_for'];
+        try {
+            set_password($id, (string) $_POST['new_password']);
+            $message = people()[$id]['name'] . "'s password set.";
+        } catch (InvalidArgumentException $ex) {
+            $error = $ex->getMessage();
         }
-        $error = 'Wrong password.';
-    } elseif (isset($_POST['logout'])) {
-        $_SESSION = [];
-        session_destroy();
-        header('Location: admin.php');
-        exit;
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['icon_for'], $_POST['icon'])) {
+    } elseif (isset($_POST['icon_for'], $_POST['icon'])) {
         $id = (string) $_POST['icon_for'];
         try {
             // Check both before saving either, so a bad colour doesn't half-save the row.
@@ -42,13 +40,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['add_location'])) {
+    } elseif (isset($_POST['add_location'])) {
         try {
             $message = add_location((string) $_POST['add_location']) . ' added.';
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['rename_location_from'], $_POST['rename_location_to'])) {
+    } elseif (isset($_POST['rename_location_from'], $_POST['rename_location_to'])) {
         $from = (string) $_POST['rename_location_from'];
         try {
             $to = rename_location($from, (string) $_POST['rename_location_to']);
@@ -56,27 +54,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['default_location'])) {
+    } elseif (isset($_POST['default_location'])) {
         try {
             set_default_location((string) $_POST['default_location']);
             $message = 'New matches will default to ' . $_POST['default_location'] . '.';
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_location'])) {
+    } elseif (isset($_POST['delete_location'])) {
         try {
             delete_location((string) $_POST['delete_location']);
             $message = $_POST['delete_location'] . ' removed from the list.';
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['add_game'])) {
+    } elseif (isset($_POST['add_game'])) {
         try {
             $message = add_game((string) $_POST['add_game']) . ' added.';
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['rename_from'], $_POST['rename_to'])) {
+    } elseif (isset($_POST['rename_from'], $_POST['rename_to'])) {
         $from = (string) $_POST['rename_from'];
         try {
             // Check the icon and player numbers first, so a bad one doesn't leave the game half saved.
@@ -103,14 +101,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_game'])) {
+    } elseif (isset($_POST['delete_game'])) {
         try {
             delete_game((string) $_POST['delete_game']);
             $message = $_POST['delete_game'] . ' removed from the list.';
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['add_entry'])) {
+    } elseif (isset($_POST['add_entry'])) {
         $winner = (string) ($_POST['winner'] ?? '');
         try {
             $at = DateTimeImmutable::createFromFormat('Y-m-d\TH:i', (string) ($_POST['at'] ?? ''));
@@ -138,19 +136,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (InvalidArgumentException $ex) {
             $error = $ex->getMessage();
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_at'], $_POST['delete_to'])) {
+    } elseif (isset($_POST['delete_at'], $_POST['delete_to'])) {
         if (delete_history_entry((string) $_POST['delete_at'], (string) $_POST['delete_to'])) {
             $message = 'History entry deleted.';
         } else {
             $error = 'That history entry no longer exists.';
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['delete_future'])) {
+    } elseif (isset($_POST['delete_future'])) {
         if (delete_future_match((string) $_POST['delete_future'])) {
             $message = 'Future match deleted.';
         } else {
             $error = 'That future match no longer exists.';
         }
-    } elseif (!empty($_SESSION['admin']) && isset($_POST['holder'])) {
+    } elseif (isset($_POST['holder'])) {
         $id = (string) $_POST['holder'];
         if (!isset(people()[$id])) {
             $error = 'Unknown person.';
@@ -197,14 +195,6 @@ page_head('Crown Admin');
     <?php if ($error): ?><p class="flash error"><?= e($error) ?></p><?php endif ?>
     <?php if ($message): ?><p class="flash ok"><?= e($message) ?></p><?php endif ?>
 
-    <?php if (empty($_SESSION['admin'])): ?>
-        <form method="post" class="login">
-            <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
-            <button type="submit">Log in</button>
-        </form>
-    <?php else: ?>
         <?php if (config()['admin_password'] === 'change-me'): ?>
             <p class="flash error">You're still using the default password. Change it in config.php.</p>
         <?php endif ?>
@@ -272,6 +262,23 @@ page_head('Crown Admin');
                 <?php endforeach ?>
             </div>
             <p class="since game-note">Type or paste an emoji (on a phone, switch to the emoji keyboard), or a couple of letters. Pick a background colour for the avatar, then Save.</p>
+
+            <h2 class="label stats-title">Logins</h2>
+            <div class="game-list">
+                <?php foreach (people() as $id => $p): ?>
+                    <?php if ($id === superuser()) continue ?>
+                    <form method="post" class="password-row">
+                        <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+                        <input type="hidden" name="password_for" value="<?= e($id) ?>">
+                        <span class="icon-name"><?= e($p['name']) ?></span>
+                        <span class="game-played"><?= has_password($id) ? 'Can log in' : 'No password yet' ?></span>
+                        <input type="password" name="new_password" minlength="<?= MIN_PASSWORD_LENGTH ?>" required autocomplete="new-password"
+                               placeholder="<?= has_password($id) ? 'New password' : 'Password' ?>" aria-label="Password for <?= e($p['name']) ?>">
+                        <button type="submit">Set</button>
+                    </form>
+                <?php endforeach ?>
+            </div>
+            <p class="since game-note">Each player logs in on the Log in page to change their own icon and colour, and can change the password you give them. Your own login is the admin password in config.php.</p>
             <a href="admin.php" class="show-all">← Back to admin</a>
             <script>
                 // Preview the colour on the avatar before saving.
@@ -529,11 +536,10 @@ page_head('Crown Admin');
         <?php endif ?>
         <?php endif ?>
 
-        <form method="post" class="logout">
+        <form method="post" action="login.php" class="logout">
             <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
             <button type="submit" name="logout" value="1" class="link">Log out</button>
         </form>
-    <?php endif ?>
 </main>
 <a class="admin-link" href="./">← Back to the crown</a>
 </body>

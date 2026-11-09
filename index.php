@@ -68,7 +68,7 @@ page_head('The Crown');
         <a href="games.php" class="show-all">Game details</a>
     </nav>
 </main>
-<a class="admin-link" href="admin.php">Admin</a>
+<a class="admin-link" href="login.php">Log in</a>
 
 <script>
 const shownId = <?= json_encode($holder['id']) ?>;

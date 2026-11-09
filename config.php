@@ -4,6 +4,10 @@
 return [
     'admin_password' => 'KingSp00n',
 
+    // The person whose login opens the admin area; their password is admin_password above.
+    // Everyone else logs in to change their own avatar, with a password set on the admin page.
+    'superuser' => 'p1',
+
     // Times entered on the admin page are in this time zone.
     'timezone' => 'Europe/London',
 
