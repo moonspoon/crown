@@ -1,10 +1,9 @@
 <?php
-// Edit this file to set the six contenders, the starting games and the admin password.
+// Edit this file to set the six contenders and the starting games.
+// The admin password lives in config.local.php, which is not committed: copy config.local.example.php to make it.
 
 return [
-    'admin_password' => 'KingSp00n',
-
-    // The person whose login opens the admin area; their password is admin_password above.
+    // The person whose login opens the admin area; their password is admin_password in config.local.php.
     // Everyone else logs in to change their own avatar, with a password set on the admin page.
     'superuser' => 'p1',
 

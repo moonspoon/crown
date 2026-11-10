@@ -1,8 +1,8 @@
 DirectoryIndex index.php
 
-<Files "config.php">
+<FilesMatch "^config(\.local)?(\.example)?\.php$">
     Require all denied
-</Files>
+</FilesMatch>
 <Files "lib.php">
     Require all denied
 </Files>

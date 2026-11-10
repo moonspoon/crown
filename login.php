@@ -20,9 +20,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . home_page($id));
             exit;
         }
-        $error = isset(config()['people'][$id]) && !has_password($id)
+        $error = $id === superuser() && !admin_password_set()
+            ? 'No admin password is set up yet. Copy config.local.example.php to config.local.php and set it there.'
+            : (isset(config()['people'][$id]) && !has_password($id)
             ? "You don't have a password yet. Ask " . person_name(superuser()) . ' to set one.'
-            : 'Wrong password.';
+            : 'Wrong password.');
     }
 } elseif ($user = logged_in()) {
     header('Location: ' . home_page($user));

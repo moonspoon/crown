@@ -195,8 +195,8 @@ page_head('Crown Admin');
     <?php if ($error): ?><p class="flash error"><?= e($error) ?></p><?php endif ?>
     <?php if ($message): ?><p class="flash ok"><?= e($message) ?></p><?php endif ?>
 
-        <?php if (config()['admin_password'] === 'change-me'): ?>
-            <p class="flash error">You're still using the default password. Change it in config.php.</p>
+        <?php if ((config()['admin_password'] ?? null) === 'change-me'): ?>
+            <p class="flash error">You're still using the default password. Change it in config.local.php.</p>
         <?php endif ?>
         <?php if (isset($_GET['locations'])): ?>
             <h2 class="label stats-title">Locations</h2>
@@ -278,7 +278,7 @@ page_head('Crown Admin');
                     </form>
                 <?php endforeach ?>
             </div>
-            <p class="since game-note">Each player logs in on the Log in page to change their own icon and colour, and can change the password you give them. Your own login is the admin password in config.php.</p>
+            <p class="since game-note">Each player logs in on the Log in page to change their own icon and colour, and can change the password you give them. Your own login is the admin password in config.local.php.</p>
             <a href="admin.php" class="show-all">← Back to admin</a>
             <script>
                 // Preview the colour on the avatar before saving.

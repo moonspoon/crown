@@ -10,7 +10,7 @@ const COLOURS_FILE = __DIR__ . '/data/colours.json';
 // Avatars without a chosen colour use the panel colour (--panel in style.css).
 const DEFAULT_AVATAR_COLOUR = '#2a2246';
 const LOCATIONS_FILE = __DIR__ . '/data/locations.json';
-// Hashed login passwords for everyone but the superuser, whose password is admin_password in config.php.
+// Hashed login passwords for everyone but the superuser, whose password is admin_password in config.local.php.
 const PASSWORDS_FILE = __DIR__ . '/data/passwords.json';
 const MIN_PASSWORD_LENGTH = 6;
 // Matches arranged for a later date. Kept apart from the history, so they never touch the holder or the stats.
@@ -19,7 +19,9 @@ const FUTURE_FILE = __DIR__ . '/data/future.json';
 function config(): array
 {
     static $config = null;
-    return $config ??= require __DIR__ . '/config.php';
+    // config.local.php holds secrets kept out of git, such as the admin password, and overrides config.php.
+    $local = __DIR__ . '/config.local.php';
+    return $config ??= array_replace(require __DIR__ . '/config.php', is_file($local) ? require $local : []);
 }
 
 date_default_timezone_set(config()['timezone'] ?? 'Europe/London');
@@ -150,13 +152,20 @@ function has_password(string $id): bool
     return $id === superuser() || isset(password_hashes()[$id]);
 }
 
+/** Whether config.local.php gives the superuser a password. */
+function admin_password_set(): bool
+{
+    return (string) (config()['admin_password'] ?? '') !== '';
+}
+
 function check_login(string $id, string $password): bool
 {
     if (!isset(config()['people'][$id])) {
         return false;
     }
     if ($id === superuser()) {
-        return hash_equals((string) config()['admin_password'], $password);
+        // With no admin password set up, nobody gets in as the superuser (not even with an empty password).
+        return admin_password_set() && hash_equals((string) config()['admin_password'], $password);
     }
     $hash = password_hashes()[$id] ?? null;
     return $hash !== null && password_verify($password, $hash);
@@ -169,7 +178,7 @@ function set_password(string $id, string $password): void
         throw new InvalidArgumentException('Unknown person.');
     }
     if ($id === superuser()) {
-        throw new InvalidArgumentException('The admin password is set in config.php.');
+        throw new InvalidArgumentException('The admin password is set in config.local.php.');
     }
     if (strlen($password) < MIN_PASSWORD_LENGTH) {
         throw new InvalidArgumentException('Passwords need at least ' . MIN_PASSWORD_LENGTH . ' characters.');
