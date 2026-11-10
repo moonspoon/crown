@@ -5,16 +5,19 @@ import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
 /**
- * First run: pick which of the six people you are. After that: shows who holds the crown,
- * with buttons to refresh or change who you are.
+ * First run: log in with your crown website name and password. After that: shows who holds the crown,
+ * with buttons to refresh or log in as someone else.
  */
 class MainActivity : Activity() {
     private lateinit var content: LinearLayout
@@ -31,16 +34,17 @@ class MainActivity : Activity() {
         if (Prefs.me(this) == null) showPicker() else showStatus()
     }
 
+    /** Log in, step one: pick your name. */
     private fun showPicker() {
         content.removeAllViews()
-        content.addView(text("Who are you?", 26f))
-        content.addView(text("Your notification shows a crown when you're King, and a P when you're a peasant.", 15f))
+        content.addView(text("Log in", 26f))
+        content.addView(text("Your notification shows a crown when you're King, and a P when you're a peasant. Pick your name, then enter the password you use on the crown website.", 15f))
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(list)
         fun fill(people: List<Person>) {
             list.removeAllViews()
             people.forEach { person ->
-                list.addView(button("${person.icon} ${person.name}") { choose(person) })
+                list.addView(button("${person.icon} ${person.name}") { showPassword(person) })
             }
         }
         fill(CrownApi.FALLBACK_PEOPLE)
@@ -49,6 +53,48 @@ class MainActivity : Activity() {
             val people = try { CrownApi.fetch().people } catch (e: Exception) { null }
             if (people != null) runOnUiThread { if (!isFinishing) fill(people) }
         }.start()
+    }
+
+    /** Log in, step two: the password, checked against the site before this phone becomes theirs. */
+    private fun showPassword(person: Person) {
+        content.removeAllViews()
+        content.addView(text("${person.icon} ${person.name}", 26f))
+        val password = EditText(this).apply {
+            hint = "Password"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            imeOptions = EditorInfo.IME_ACTION_DONE
+            setSingleLine()
+        }
+        val message = text("", 15f)
+        lateinit var logIn: Button
+        val submit = {
+            val entered = password.text.toString()
+            if (entered.isEmpty()) {
+                message.text = "Enter your password."
+            } else {
+                logIn.isEnabled = false
+                message.text = "Checking…"
+                Thread {
+                    val result = try { Result.success(CrownApi.login(person.id, entered)) } catch (e: Exception) { Result.failure(e) }
+                    runOnUiThread {
+                        if (isFinishing) return@runOnUiThread
+                        result.onSuccess { choose(it) }.onFailure { e ->
+                            logIn.isEnabled = true
+                            message.text = if (e is LoginRefused) e.message else "Couldn't reach the site. Check your connection and try again."
+                        }
+                    }
+                }.start()
+            }
+        }
+        password.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) { submit(); true } else false
+        }
+        logIn = button("Log in") { submit() }
+        content.addView(password)
+        content.addView(message.apply { setPadding(0, dp(12), 0, dp(12)) })
+        content.addView(logIn)
+        content.addView(button("Not you? Pick again") { showPicker() })
+        password.requestFocus()
     }
 
     private fun choose(person: Person) {
@@ -83,7 +129,7 @@ class MainActivity : Activity() {
             content.addView(text("Notifications are off, so nothing will show in the status bar. Turn them on for Crown in Settings.", 15f))
         }
         content.addView(button("Refresh") { showStatus() })
-        content.addView(button("Change who I am") { showPicker() })
+        content.addView(button("Log in as someone else") { showPicker() })
 
         Thread {
             val result = try { Result.success(CrownApi.fetch()) } catch (e: Exception) { Result.failure(e) }

@@ -3,6 +3,10 @@ package com.rothwellmead.crown
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
+
+/** The site turned a login down; [message] says why, ready to show. */
+class LoginRefused(message: String) : Exception(message)
 
 /** [lastHeld] is when they last lost the crown (ISO 8601): null if they never held it, hold it now, or the site is older. */
 data class Person(val id: String, val name: String, val icon: String, val lastHeld: String? = null)
@@ -44,6 +48,39 @@ object CrownApi {
                 Person(id, json.optStringOrNull("name") ?: id, json.optStringOrNull("icon") ?: "")
             }
             return CrownStatus(holder, json.optStringOrNull("since"), people)
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /**
+     * Checks a login against the site (the same passwords as the website). Blocking: run it off the main thread.
+     * Returns who logged in; throws [LoginRefused] with the site's reason, or IOException if it can't be reached.
+     */
+    fun login(id: String, password: String): Person {
+        val conn = URL(URL_API).openConnection() as HttpURLConnection
+        conn.connectTimeout = 15_000
+        conn.readTimeout = 15_000
+        conn.requestMethod = "POST"
+        conn.doOutput = true
+        conn.setRequestProperty("Accept", "application/json")
+        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+        try {
+            val body = listOf("action" to "login", "id" to id, "password" to password)
+                .joinToString("&") { (k, v) -> "$k=" + URLEncoder.encode(v, "UTF-8") }
+            conn.outputStream.use { it.write(body.toByteArray()) }
+            val code = conn.responseCode
+            val stream = if (code == 200) conn.inputStream else conn.errorStream
+            val json = stream?.bufferedReader()?.use { it.readText() }?.let {
+                try { JSONObject(it) } catch (e: Exception) { null }
+            }
+            if (code == 200 && json?.optBoolean("ok") == true) {
+                return Person(json.getString("id"), json.optString("name"), json.optString("icon"))
+            }
+            if (code == 401) {
+                throw LoginRefused(json?.optStringOrNull("error") ?: "Wrong password.")
+            }
+            throw java.io.IOException("Crown API returned $code")
         } finally {
             conn.disconnect()
         }
