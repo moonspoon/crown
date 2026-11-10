@@ -550,6 +550,26 @@ function current_holder(): array
 }
 
 /**
+ * When each person last lost the crown, as recorded in the history (ISO 8601). Null for anyone who has
+ * never held it, and for the current holder, who still has it.
+ * @return array<string, ?string>
+ */
+function last_held_dates(): array
+{
+    $lost = array_fill_keys(array_keys(people()), null);
+    foreach (log_entries() as $entry) {
+        if ($entry['from'] !== null && $entry['from'] !== $entry['to'] && array_key_exists($entry['from'], $lost)) {
+            $lost[$entry['from']] = $entry['at'];
+        }
+    }
+    $holder = current_holder()['id'];
+    if ($holder !== null) {
+        $lost[$holder] = null;
+    }
+    return $lost;
+}
+
+/**
  * Checks a match's game and players. An empty game is allowed only when $gameOptional.
  * @param string[] $players ids of everyone who played; the winner is dropped if included
  * @return string[] the other players

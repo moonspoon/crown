@@ -32,8 +32,13 @@ object CrownNotifier {
         val text = when {
             isKing -> if (since != null) "Since $since" else "The crown is yours"
             status.holder == null -> "Nobody holds the crown"
-            else -> "${status.holder.icon} ${status.holder.name} has the crown" + (since?.let { " since $it" } ?: "")
+            else -> "${status.holder.icon} ${status.holder.name} " + (since?.let { "has had the crown since $it" } ?: "has the crown")
         }.trim()
+        // Peasants also see when they last had the crown themselves (shown in full when the notification is expanded).
+        val fullText = if (isKing) text else when (val last = formatSince(status.people.find { it.id == me }?.lastHeld)) {
+            null -> text
+            else -> "$text. You last had it on $last."
+        }
 
         val openApp = PendingIntent.getActivity(
             context, 0,
@@ -43,7 +48,8 @@ object CrownNotifier {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(if (isKing) R.drawable.ic_stat_crown else R.drawable.ic_stat_peasant)
             .setContentTitle(title)
-            .setContentText(text)
+            .setContentText(fullText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(fullText))
             .setContentIntent(openApp)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

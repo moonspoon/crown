@@ -4,7 +4,8 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-data class Person(val id: String, val name: String, val icon: String)
+/** [lastHeld] is when they last lost the crown (ISO 8601): null if they never held it, hold it now, or the site is older. */
+data class Person(val id: String, val name: String, val icon: String, val lastHeld: String? = null)
 
 /** Who holds the crown right now. [holder] is null when nobody does. */
 data class CrownStatus(val holder: Person?, val since: String?, val people: List<Person>)
@@ -36,7 +37,7 @@ object CrownApi {
             val people = json.optJSONArray("people")?.let { arr ->
                 (0 until arr.length()).map { i ->
                     val p = arr.getJSONObject(i)
-                    Person(p.getString("id"), p.getString("name"), p.optString("icon"))
+                    Person(p.getString("id"), p.getString("name"), p.optString("icon"), p.optStringOrNull("last_held"))
                 }
             }?.takeIf { it.isNotEmpty() } ?: FALLBACK_PEOPLE
             val holder = json.optStringOrNull("id")?.let { id ->
@@ -49,5 +50,5 @@ object CrownApi {
     }
 
     private fun JSONObject.optStringOrNull(key: String): String? =
-        if (isNull(key)) null else optString(key).ifEmpty { null }
+        if (!has(key) || isNull(key)) null else optString(key).ifEmpty { null }
 }
