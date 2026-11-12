@@ -10,6 +10,11 @@ if (($lastWin['to'] ?? null) !== $holder['id'] || (empty($lastWin['game']) && em
     $lastWin = null;
 }
 $next = future_matches()[0] ?? null;
+// Who's logged in, for the corner link; visitors who never logged in don't get a session started for them.
+if (isset($_COOKIE[session_name()])) {
+    start_login_session();
+}
+$me = logged_in();
 
 page_head('The Crown');
 ?>
@@ -68,7 +73,18 @@ page_head('The Crown');
         <a href="games.php" class="show-all">Game details</a>
     </nav>
 </main>
-<a class="admin-link" href="login.php">Log in</a>
+<?php if ($me): ?>
+    <div class="admin-link signed-in">
+        <a href="<?= e(home_page($me)) ?>">Logged in as <?= e(trim($people[$me]['icon'] . ' ' . $people[$me]['name'])) ?></a>
+        <span aria-hidden="true">·</span>
+        <form method="post" action="login.php">
+            <input type="hidden" name="csrf" value="<?= e($_SESSION['csrf']) ?>">
+            <button type="submit" name="logout" value="1" class="link">Log out</button>
+        </form>
+    </div>
+<?php else: ?>
+    <a class="admin-link" href="login.php">Log in</a>
+<?php endif ?>
 
 <script>
 const shownId = <?= json_encode($holder['id']) ?>;
