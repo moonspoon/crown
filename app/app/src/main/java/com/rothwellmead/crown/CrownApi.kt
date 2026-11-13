@@ -15,7 +15,9 @@ data class Person(val id: String, val name: String, val icon: String, val lastHe
 data class CrownStatus(val holder: Person?, val since: String?, val people: List<Person>)
 
 object CrownApi {
-    private const val URL_API = "https://rothwellmead.com/crown/api.php"
+    /** The crown website's homepage, shown in the app once you're logged in. */
+    const val SITE_URL = "https://rothwellmead.com/crown/"
+    private const val URL_API = SITE_URL + "api.php"
 
     /** Used to choose who you are if the site doesn't list people (older api.php) or can't be reached. */
     val FALLBACK_PEOPLE = listOf(
